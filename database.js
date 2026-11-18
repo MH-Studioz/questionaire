@@ -52,7 +52,7 @@ const STUDY_DATA = {
   meta: {
     title: "Questionaire",
     tagline: "A printed study annual for serious practice.",
-    version: "1.2.0",
+    version: "1.3.0",
     updated: "2026-11-18"
   },
 
@@ -3187,6 +3187,1346 @@ const STUDY_DATA = {
                 "How spaced repetition schedules reviews.",
                 "Why testing yourself creates durable memory.",
                 "A simple system for tracking review intervals."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+
+    /* ======================================================================
+       LANGUAGES
+       ====================================================================== */
+    {
+      id: "languages",
+      title: "Languages",
+      tagline: "Nine languages, one method: hear it, say it, then read the grammar.",
+      icon: "quote",
+      accent: "sky",
+      subjects: [
+        /* ------------------------------------------------------------------
+           SPANISH
+           ------------------------------------------------------------------ */
+        {
+          id: "spanish",
+          title: "Spanish",
+          icon: "quote",
+          accent: "amber",
+          level: "Beginner",
+          blurb: "Greetings, gender and the present tense — the three habits that make Spanish start to click.",
+          tags: ["Spanish", "greetings", "gender", "present tense", "ser vs estar", "pronunciation"],
+          questions: [
+            {
+              id: "span-1",
+              difficulty: "Beginner",
+              tags: ["greetings", "vocabulary"],
+              prompt: "What does '¿Cómo estás?' mean?",
+              options: [
+                "How are you?",
+                "What is your name?",
+                "Where are you from?",
+                "How old are you?"
+              ],
+              answer: 0,
+              hint: "It is the question you ask after 'Hola'. The usual reply is 'Bien, gracias'.",
+              explanation: [
+                "'¿Cómo estás?' is the informal way to ask 'How are you?'.",
+                "A natural reply is 'Estoy bien, gracias' or 'Muy bien'.",
+                "Use '¿Cómo está usted?' when speaking formally to one person.",
+                "'¿Cómo te llamas?' asks for a name, not for wellbeing."
+              ]
+            },
+            {
+              id: "span-2",
+              difficulty: "Beginner",
+              tags: ["gender", "articles", "nouns"],
+              prompt: "Which definite article goes with 'libro' (book)?",
+              options: ["el", "la", "los", "las"],
+              answer: 0,
+              hint: "'Libro' is masculine and singular. Spanish articles agree in both gender and number.",
+              explanation: [
+                "'Libro' is a masculine singular noun, so it takes the masculine singular article 'el'.",
+                "The phrase is 'el libro'. Its plural is 'los libros'.",
+                "Feminine singular nouns take 'la', as in 'la casa'.",
+                "Do not guess from the ending alone: 'el mapa' is masculine and 'la mano' is feminine."
+              ]
+            },
+            {
+              id: "span-3",
+              difficulty: "Beginner",
+              tags: ["present tense", "verb conjugation", "hablar"],
+              prompt: "Complete the sentence: 'Ella ___ español.' (hablar)",
+              options: ["habla", "hablas", "hablo", "hablan"],
+              answer: 0,
+              hint: "'Ella' is third-person singular. Regular -ar verbs take -a in that form.",
+              explanation: [
+                "'Hablar' is a regular -ar verb. Drop -ar to get the stem 'habl-'.",
+                "For 'ella' (she), add -a: 'ella habla'.",
+                "The full present tense is 'yo hablo, tú hablas, él/ella habla, nosotros hablamos, ellos hablan'.",
+                "Spanish often drops the pronoun, but 'ella habla' keeps it for emphasis."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "span-s1",
+              title: "Sounds & Greetings",
+              icon: "quote",
+              summary: "Spanish spelling is unusually honest: five clean vowels and one silent letter.",
+              points: [
+                "The five vowels are a, e, i, o, u — each has one short, stable sound. Never glide them into English diphthongs.",
+                "The letter h is silent: 'hola' sounds like 'OH-lah'. The letter ñ is a separate letter, as in 'mañana'.",
+                "Greet with 'Hola', 'Buenos días' (morning), 'Buenas tardes' (afternoon) and 'Buenas noches' (evening).",
+                "Use 'tú' with friends and peers, and 'usted' with strangers, elders or anyone you address formally."
+              ]
+            },
+            {
+              id: "span-s2",
+              title: "Gender & Articles",
+              icon: "layers",
+              summary: "Every noun has a gender, and everything attached to it has to agree.",
+              points: [
+                "Definite articles: 'el' (masculine singular), 'la' (feminine singular), 'los' and 'las' in the plural.",
+                "Indefinite articles: 'un' and 'una' mean 'a' or 'an'; 'unos' and 'unas' mean 'some'.",
+                "Adjectives agree with the noun: 'el libro nuevo', 'la casa nueva', 'los libros nuevos'.",
+                "Use 'ser' for identity, origin and profession, and 'estar' for location, mood and temporary states."
+              ]
+            },
+            {
+              id: "span-s3",
+              title: "The Present Tense",
+              icon: "pencil-line",
+              summary: "Three endings — -ar, -er, -ir — cover most verbs you will meet at the start.",
+              points: [
+                "Regular -ar verbs: hablo, hablas, habla, hablamos, habláis, hablan.",
+                "Regular -er verbs: como, comes, come, comemos, coméis, comen.",
+                "Regular -ir verbs: vivo, vives, vive, vivimos, vivís, viven.",
+                "Learn 'ser', 'ir' and 'tener' early — they are irregular and extremely common."
+              ]
+            }
+          ],
+          mistakes: [
+            "Pronouncing the h in 'hola' — it is silent.",
+            "Assuming every noun ending in -o is masculine; 'la mano' and 'la foto' are common exceptions.",
+            "Using 'ser' for temporary states: say 'estoy cansado', not 'soy cansado'.",
+            "Translating 'I am hungry' as 'soy hambriento'; Spanish says 'tengo hambre' (I have hunger)."
+          ],
+          tips: [
+            {
+              title: "Shadow the Greetings",
+              icon: "play",
+              body: "Play a 30-second greeting clip, pause after each line and repeat it aloud with the same rhythm. Record yourself once a week and compare — pronunciation improves faster when you hear your own version."
+            },
+            {
+              title: "Learn Verbs in Pairs",
+              icon: "repeat-2",
+              body: "Study opposites together: comprar/vender, entrar/salir, subir/bajar. Conjugate one pair each day and use both in a sentence, so the endings arrive with a meaning attached."
+            },
+            {
+              title: "Label Your Room",
+              icon: "tag",
+              body: "Put sticky notes on ten objects with the article included: 'la puerta', 'el escritorio', 'la lámpara'. The article is part of the word, so learn it as one unit."
+            }
+          ],
+          videos: [
+            {
+              youtube: "SoPiuMh6lnQ",
+              title: "Learn Spanish - How to Greet People in Spanish",
+              channel: "Learn Spanish with SpanishPod101.com",
+              takeaways: [
+                "Which greetings fit morning, afternoon and evening.",
+                "How formal and informal greetings differ.",
+                "A short model conversation you can repeat aloud."
+              ]
+            },
+            {
+              youtube: "IIkXK7ezRuA",
+              title: "Aprender español: Usos de SER y ESTAR (nivel básico)",
+              channel: "Tu escuela de español",
+              takeaways: [
+                "The core distinction between identity and state.",
+                "Common adjectives that change meaning with ser or estar.",
+                "Example sentences that make the choice obvious."
+              ]
+            }
+          ]
+        },
+
+        /* ------------------------------------------------------------------
+           FRENCH
+           ------------------------------------------------------------------ */
+        {
+          id: "french",
+          title: "French",
+          icon: "feather",
+          accent: "rose",
+          level: "Beginner",
+          blurb: "Greetings, gender and the passé composé — enough grammar to read a short article and say what happened.",
+          tags: ["French", "greetings", "gender", "passé composé", "politeness", "liaison"],
+          questions: [
+            {
+              id: "fr-1",
+              difficulty: "Beginner",
+              tags: ["greetings", "register"],
+              prompt: "When is 'Bonsoir' appropriate?",
+              options: [
+                "In the evening, when arriving or greeting someone",
+                "Early in the morning",
+                "Only in written French",
+                "When saying goodbye at bedtime"
+              ],
+              answer: 0,
+              hint: "It contains 'soir' — evening. 'Bonne nuit' is what you say before sleep.",
+              explanation: [
+                "'Bonsoir' is used from late afternoon or early evening onward, usually when arriving somewhere.",
+                "'Bonjour' covers the daytime; 'bonne nuit' is said when someone is going to bed.",
+                "'Salut' is informal and works for both hello and goodbye among friends.",
+                "When leaving, 'Au revoir' is the safe general choice."
+              ]
+            },
+            {
+              id: "fr-2",
+              difficulty: "Beginner",
+              tags: ["gender", "articles", "nouns"],
+              prompt: "Which article goes with 'maison' (house)?",
+              options: ["la", "le", "les", "un"],
+              answer: 0,
+              hint: "'Maison' is feminine singular. Check the noun's gender before choosing the article.",
+              explanation: [
+                "'Maison' is feminine singular, so the definite article is 'la': 'la maison'.",
+                "The indefinite article is 'une': 'une maison'.",
+                "In the plural, both genders use 'les': 'les maisons'.",
+                "Noun endings are hints, not rules — 'le musée' ends in -e but is masculine."
+              ]
+            },
+            {
+              id: "fr-3",
+              difficulty: "Intermediate",
+              tags: ["past tense", "passé composé", "auxiliaries"],
+              prompt: "'J'ai mangé' is which tense?",
+              options: ["Passé composé", "Imparfait", "Futur simple", "Présent"],
+              answer: 0,
+              hint: "It is built from a present-tense auxiliary plus a past participle.",
+              explanation: [
+                "'J'ai mangé' uses the auxiliary 'avoir' plus the past participle 'mangé' — that is the passé composé.",
+                "It translates as 'I ate' or 'I have eaten', depending on context.",
+                "The imparfait would be 'je mangeais'; the futur simple would be 'je mangerai'.",
+                "Most verbs take 'avoir'; a small set of movement and reflexive verbs take 'être'."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "fr-s1",
+              title: "Greetings & Politeness",
+              icon: "quote",
+              summary: "French politeness is grammatical, not optional — the pronoun you choose sets the tone.",
+              points: [
+                "'Bonjour' is the default daytime greeting; 'bonsoir' replaces it in the evening.",
+                "Use 'tu' with friends, family and peers; use 'vous' with strangers, elders, groups and formal situations.",
+                "'S'il vous plaît' (formal) and 's'il te plaît' (informal) both mean 'please'.",
+                "Liaison links a silent final consonant to a following vowel: 'vous avez' sounds like 'vou-z-avez'."
+              ]
+            },
+            {
+              id: "fr-s2",
+              title: "Gender & Articles",
+              icon: "layers",
+              summary: "Learn every noun with its article; the article is the gender label you will reuse everywhere.",
+              points: [
+                "Definite articles: 'le' (masculine), 'la' (feminine), 'les' (plural). Before a vowel, 'le' and 'la' become 'l''.",
+                "Indefinite articles: 'un' (masculine), 'une' (feminine), 'des' (plural).",
+                "Common feminine endings include -tion, -té and -ance; common masculine endings include -ment and -age.",
+                "Adjectives normally follow the noun and agree: 'un livre intéressant', 'une idée intéressante'."
+              ]
+            },
+            {
+              id: "fr-s3",
+              title: "The Passé Composé",
+              icon: "pencil-line",
+              summary: "One auxiliary plus one past participle — the everyday past tense for completed events.",
+              points: [
+                "Form it with the present tense of 'avoir' or 'être' plus a past participle: 'j'ai parlé', 'je suis allé'.",
+                "Regular -er verbs form the participle with -é: parler → parlé; -ir verbs often take -i: finir → fini.",
+                "With 'être', the participle agrees with the subject: 'elle est allée', 'ils sont partis'.",
+                "Use the imparfait for ongoing or repeated background, and the passé composé for a single completed event."
+              ]
+            }
+          ],
+          mistakes: [
+            "Using 'tu' with a stranger or a new colleague; default to 'vous' until invited otherwise.",
+            "Assuming every noun ending in -e is feminine — 'le musée' and 'le problème' are masculine.",
+            "Forgetting agreement with être verbs: write 'elle est allée', not 'elle est allé'.",
+            "Using the imparfait for a single finished action instead of the passé composé."
+          ],
+          tips: [
+            {
+              title: "Listen for Liaisons",
+              icon: "play",
+              body: "Pick one short audio clip and mark every liaison you hear: 'les amis', 'vous avez', 'un homme'. Repeating the links makes your speech sound French far faster than perfecting individual vowels."
+            },
+            {
+              title: "One Verb, Six Forms",
+              icon: "repeat-2",
+              body: "Write the six present-tense forms of one verb each morning and say them aloud. Keep a running list of irregulars — être, avoir, aller, faire — because they carry most everyday conversation."
+            },
+            {
+              title: "Speak from Day One",
+              icon: "quote",
+              body: "Narrate three things you did yesterday in the passé composé, even if each sentence is only five words. Accuracy grows from repeated attempts, not from waiting until the grammar is complete."
+            }
+          ],
+          videos: [
+            {
+              youtube: "hd0_GZHHWeE",
+              title: "French Greetings (French Essentials Lesson 1)",
+              channel: "Learn French With Alexa",
+              takeaways: [
+                "The standard greetings for different times of day.",
+                "How to choose between tu and vous.",
+                "Pronunciation of common greeting phrases."
+              ]
+            },
+            {
+              youtube: "R7CMGVsanu8",
+              title: "Être or Avoir in the Passé Composé in French",
+              channel: "Learn French With Alexa",
+              takeaways: [
+                "How to choose the correct auxiliary verb.",
+                "Why être verbs need participle agreement.",
+                "A practical list of common être verbs."
+              ]
+            }
+          ]
+        },
+
+        /* ------------------------------------------------------------------
+           GERMAN
+           ------------------------------------------------------------------ */
+        {
+          id: "german",
+          title: "German",
+          icon: "layers",
+          accent: "sky",
+          level: "Beginner",
+          blurb: "Cases, word order and noun gender — the three gears behind every German sentence.",
+          tags: ["German", "cases", "word order", "noun gender", "accusative", "dative"],
+          questions: [
+            {
+              id: "de-1",
+              difficulty: "Beginner",
+              tags: ["gender", "articles", "diminutives"],
+              prompt: "Which article is correct for 'Mädchen' (girl)?",
+              options: ["das", "der", "die", "den"],
+              answer: 0,
+              hint: "The ending -chen is a diminutive. All German diminutives are neuter, regardless of meaning.",
+              explanation: [
+                "'Mädchen' ends in the diminutive suffix -chen, and every -chen noun is neuter.",
+                "The correct nominative phrase is 'das Mädchen'.",
+                "Grammatical gender is not the same as biological gender — this is the standard example.",
+                "In the accusative case the article stays 'das': 'Ich sehe das Mädchen'."
+              ]
+            },
+            {
+              id: "de-2",
+              difficulty: "Beginner",
+              tags: ["word order", "main clause", "verb position"],
+              prompt: "In a German main clause, where does the finite verb go?",
+              options: [
+                "In second position",
+                "In first position",
+                "At the end of the clause",
+                "Immediately after the direct object"
+              ],
+              answer: 0,
+              hint: "The rule is often called 'verb second'. If a time phrase starts the sentence, the verb still comes next.",
+              explanation: [
+                "In a main clause the finite verb occupies the second position: 'Ich lerne heute Deutsch'.",
+                "If an element moves to the front, the verb stays second: 'Heute lerne ich Deutsch'.",
+                "A yes/no question puts the verb first: 'Lernst du Deutsch?'.",
+                "In a subordinate clause the finite verb moves to the end: '..., weil ich Deutsch lerne'."
+              ]
+            },
+            {
+              id: "de-3",
+              difficulty: "Intermediate",
+              tags: ["prepositions", "dative", "contractions"],
+              prompt: "Complete the sentence: 'Ich fahre ___ Schule.'",
+              options: ["zur", "zum", "in", "auf"],
+              answer: 0,
+              hint: "'Schule' is feminine. The preposition 'zu' contracts with 'der' in the dative.",
+              explanation: [
+                "'Schule' is feminine, so the dative article after 'zu' is 'der'.",
+                "'Zu' + 'der' contracts to 'zur': 'Ich fahre zur Schule'.",
+                "'Zum' is the contraction of 'zu' + 'dem', used with masculine or neuter nouns.",
+                "'In die Schule' is also possible when emphasising entering the building, but 'zur Schule' is the idiomatic 'to school'."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "de-s1",
+              title: "Cases at a Glance",
+              icon: "layers",
+              summary: "German marks the role of a noun with its article — that is what a case is.",
+              points: [
+                "Nominative: the subject. 'Der Mann liest.'",
+                "Accusative: the direct object. 'Ich sehe den Mann.'",
+                "Dative: the indirect object or the object of certain prepositions. 'Ich helfe dem Mann.'",
+                "Genitive: possession. 'Das Buch des Mannes.' Learn the article changes as a small table, not as isolated facts."
+              ]
+            },
+            {
+              id: "de-s2",
+              title: "Word Order",
+              icon: "route",
+              summary: "German word order is a frame: the finite verb holds second place in main clauses.",
+              points: [
+                "Main clause: subject or another element first, finite verb second, the rest after.",
+                "Neutral order inside the clause is time, manner, place: 'Ich fahre morgen mit dem Zug nach Berlin'.",
+                "Yes/no questions start with the verb: 'Hast du Zeit?'",
+                "Subordinate clauses after 'weil', 'dass' or 'wenn' send the finite verb to the end."
+              ]
+            },
+            {
+              id: "de-s3",
+              title: "Gendered Nouns",
+              icon: "boxes",
+              summary: "Three genders, one plural article, and a few endings that reliably predict gender.",
+              points: [
+                "Every noun is masculine, feminine or neuter: der, die or das. Learn the article with the noun.",
+                "Diminutives in -chen and -lein are always neuter: das Mädchen, das Fräulein.",
+                "Compound nouns take the gender of their last element: 'die Haustür' from 'die Tür'.",
+                "The plural definite article is always 'die', regardless of the noun's gender."
+              ]
+            }
+          ],
+          mistakes: [
+            "Assuming grammatical gender matches natural gender — 'das Mädchen' is neuter.",
+            "Putting the finite verb at the end of a main clause.",
+            "Using the nominative after accusative prepositions such as durch, für, gegen, ohne and um.",
+            "Forgetting the extra -n in the dative plural: 'mit den Kindern'."
+          ],
+          tips: [
+            {
+              title: "Noun + Article, Always",
+              icon: "tag",
+              body: "Never memorize a noun alone. Write 'der Tisch, die Lampe, das Fenster' and say the article with the word every time. Gender becomes automatic through repetition, not through rules."
+            },
+            {
+              title: "Chunk the Cases",
+              icon: "repeat-2",
+              body: "Learn whole phrases instead of isolated endings: 'mit der Bahn', 'für den Kurs', 'auf dem Tisch'. The case is carried by the chunk, so you can retrieve it whole under pressure."
+            },
+            {
+              title: "Verb Second Check",
+              icon: "check-check",
+              body: "Before you say a main-clause sentence, find the finite verb and count its position. If it is not second, move it. This single check fixes most beginner word-order errors."
+            }
+          ],
+          videos: [
+            {
+              youtube: "iB_sassbnOw",
+              title: "German Lesson 1: Learn German for Beginners - German Greetings",
+              channel: "Learn German with Anja",
+              takeaways: [
+                "Essential greetings for different times of day.",
+                "How to introduce yourself simply.",
+                "Pronunciation of common beginner phrases."
+              ]
+            },
+            {
+              youtube: "fd_5Wjsf9xo",
+              title: "Learn the Accusative Case in German - Part 1: The Direct Object",
+              channel: "lingoni GERMAN",
+              takeaways: [
+                "Why the accusative case exists.",
+                "How masculine articles change in the accusative.",
+                "Example sentences with direct objects."
+              ]
+            }
+          ]
+        },
+
+        /* ------------------------------------------------------------------
+           PORTUGUESE
+           ------------------------------------------------------------------ */
+        {
+          id: "portuguese",
+          title: "Portuguese",
+          icon: "waves",
+          accent: "emerald",
+          level: "Beginner",
+          blurb: "European and Brazilian foundations: nasal sounds, ser vs estar, and the verbs you will use every day.",
+          tags: ["Portuguese", "greetings", "nasal vowels", "ser vs estar", "verb endings", "Brazilian Portuguese"],
+          questions: [
+            {
+              id: "pt-1",
+              difficulty: "Beginner",
+              tags: ["vocabulary", "agreement", "politeness"],
+              prompt: "A male speaker says thank you as...",
+              options: ["obrigado", "obrigada", "obrigados", "obrigadinho"],
+              answer: 0,
+              hint: "The ending agrees with the speaker's gender, not with the person being thanked.",
+              explanation: [
+                "A male speaker says 'obrigado'; a female speaker says 'obrigada'.",
+                "The word behaves like an adjective and agrees with the speaker.",
+                "In the plural, use 'obrigados' for a male or mixed group and 'obrigadas' for an all-female group.",
+                "'Obrigadinho' is a diminutive and sounds affectionate or informal, not neutral."
+              ]
+            },
+            {
+              id: "pt-2",
+              difficulty: "Beginner",
+              tags: ["ser vs estar", "verbs", "meaning"],
+              prompt: "Which verb describes a permanent characteristic?",
+              options: ["ser", "estar", "ter", "ficar"],
+              answer: 0,
+              hint: "Think of identity, origin and profession — the things that define what something is.",
+              explanation: [
+                "'Ser' describes identity, origin, nationality and generally permanent characteristics: 'Sou brasileiro'.",
+                "'Estar' describes temporary states and locations: 'Estou cansado', 'Estou em casa'.",
+                "'Ter' means 'to have': 'Tenho um livro'.",
+                "'Ficar' means 'to stay' or 'to become': 'Fico em casa'."
+              ]
+            },
+            {
+              id: "pt-3",
+              difficulty: "Beginner",
+              tags: ["present tense", "ser", "nationality"],
+              prompt: "Complete the sentence: 'Eu ___ brasileiro.'",
+              options: ["sou", "estou", "tenho", "fico"],
+              answer: 0,
+              hint: "Nationality is treated as identity in Portuguese.",
+              explanation: [
+                "Nationality takes 'ser': 'Eu sou brasileiro'.",
+                "The first-person present form of 'ser' is 'sou'.",
+                "'Estou' would describe a temporary state or location, not nationality.",
+                "A female speaker says 'Eu sou brasileira'."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "pt-s1",
+              title: "Sounds & Greetings",
+              icon: "quote",
+              summary: "Portuguese vowels are the hard part; the greetings are the easy win.",
+              points: [
+                "Nasal vowels are written with a tilde or a following m/n: 'ão', 'ãe', 'õe'. They resonate through the nose.",
+                "European Portuguese reduces unstressed vowels sharply; Brazilian Portuguese pronounces them more openly.",
+                "Greetings: 'Olá', 'Bom dia', 'Boa tarde', 'Boa noite'. 'Obrigado/obrigada' agrees with the speaker.",
+                "Use 'você' in most of Brazil; 'o senhor' and 'a senhora' add formality. Portugal uses 'tu' more readily among peers."
+              ]
+            },
+            {
+              id: "pt-s2",
+              title: "Ser vs Estar",
+              icon: "layers",
+              summary: "Two verbs for 'to be', split by identity versus state.",
+              points: [
+                "'Ser' covers identity, origin, nationality, profession and inherent characteristics.",
+                "'Estar' covers temporary states, moods, locations and ongoing actions.",
+                "Some adjectives change meaning: 'Ele é bonito' (he is handsome) versus 'Ele está bonito' (he looks handsome today).",
+                "Professions normally take 'ser': 'Ela é professora'. Location normally takes 'estar': 'Ela está na escola'."
+              ]
+            },
+            {
+              id: "pt-s3",
+              title: "Verb Endings",
+              icon: "pencil-line",
+              summary: "Three infinitive endings, one present-tense pattern, and a very useful future shortcut.",
+              points: [
+                "Infinitives end in -ar, -er or -ir: falar, comer, viver.",
+                "Regular present: eu falo, você fala, nós falamos; eu como, você come; eu vivo, você vive.",
+                "For a near future, use 'ir' + infinitive: 'Vou estudar' (I am going to study).",
+                "Learn 'ser', 'estar', 'ter' and 'ir' early — they are irregular and appear constantly."
+              ]
+            }
+          ],
+          mistakes: [
+            "Using 'estar' for nationality or origin instead of 'ser'.",
+            "Dropping the plural -s on articles and nouns: 'os livros', not 'o livro' for plural.",
+            "Pronouncing every final vowel fully in European Portuguese, where many are reduced.",
+            "Saying 'eu é' instead of 'eu sou'."
+          ],
+          tips: [
+            {
+              title: "Nasal Drill",
+              icon: "waves",
+              body: "Practise minimal pairs such as 'pão' versus 'pau' and 'mãe' versus 'mai'. Put a hand near your nose: you should feel vibration on the nasal word. Two minutes a day is enough."
+            },
+            {
+              title: "Ser/Estar Pairs",
+              icon: "repeat-2",
+              body: "Write five sentences about yourself with 'ser' and five with 'estar'. Then change the temporary ones to permanent and notice how the meaning shifts. The contrast is easier to remember than a rule list."
+            },
+            {
+              title: "Listen to Both Varieties",
+              icon: "play",
+              body: "Spend one week with Brazilian audio and one with European Portuguese. You do not need to imitate both, but you do need to understand both — the vowel reduction differences are large."
+            }
+          ],
+          videos: [
+            {
+              youtube: "pgC1ofHxm7s",
+              title: "European Portuguese Lessons For Beginners: Greetings and Introductions",
+              channel: "Mia Esmeriz Academy",
+              takeaways: [
+                "Greetings for different times of day.",
+                "How to introduce yourself and ask someone's name.",
+                "European Portuguese pronunciation of familiar phrases."
+              ]
+            },
+            {
+              youtube: "H6UGVnW0nz8",
+              title: "The Differences Between Ser & Estar",
+              channel: "Speaking Brazilian Language School",
+              takeaways: [
+                "The identity-versus-state distinction in Brazilian Portuguese.",
+                "Adjectives whose meaning changes with the verb.",
+                "Everyday example sentences using both verbs."
+              ]
+            }
+          ]
+        },
+
+        /* ------------------------------------------------------------------
+           HINDI
+           ------------------------------------------------------------------ */
+        {
+          id: "hindi",
+          title: "Hindi",
+          icon: "scroll-text",
+          accent: "amber",
+          level: "Beginner",
+          blurb: "Devanagari, sentence structure and polite forms — read the script and build your first Hindi sentences.",
+          tags: ["Hindi", "Devanagari", "SOV", "postpositions", "politeness", "greetings"],
+          questions: [
+            {
+              id: "hi-1",
+              difficulty: "Beginner",
+              tags: ["word order", "grammar"],
+              prompt: "What is the basic Hindi word order?",
+              options: [
+                "Subject - Object - Verb",
+                "Subject - Verb - Object",
+                "Verb - Subject - Object",
+                "Object - Verb - Subject"
+              ],
+              answer: 0,
+              hint: "The verb waits until the end of the clause.",
+              explanation: [
+                "Hindi is an SOV language: the subject comes first, the object next, and the verb last.",
+                "'मैं हिंदी पढ़ता हूँ' literally orders as 'I Hindi read'.",
+                "English's SVO order sounds wrong in Hindi: 'मैं पढ़ता हूँ हिंदी' is not the neutral order.",
+                "Time and place phrases usually sit before the object, but the verb stays final."
+              ]
+            },
+            {
+              id: "hi-2",
+              difficulty: "Beginner",
+              tags: ["greetings", "politeness", "vocabulary"],
+              prompt: "What does 'आप कैसे हैं?' mean?",
+              options: [
+                "How are you? (formal)",
+                "What is your name?",
+                "Where are you going?",
+                "How old are you?"
+              ],
+              answer: 0,
+              hint: "'आप' is the formal 'you'; 'कैसे' asks 'how'.",
+              explanation: [
+                "'आप कैसे हैं?' means 'How are you?' and uses the formal pronoun 'आप'.",
+                "The reply can be 'मैं ठीक हूँ' (I am fine).",
+                "'आपका नाम क्या है?' asks someone's name.",
+                "With a close friend you might say 'तुम कैसे हो?'; 'आप' is the safe choice with strangers and elders."
+              ]
+            },
+            {
+              id: "hi-3",
+              difficulty: "Beginner",
+              tags: ["postpositions", "grammar", "location"],
+              prompt: "Which postposition means 'in' in 'घर में'?",
+              options: ["में", "पर", "से", "को"],
+              answer: 0,
+              hint: "'घर' means house. The word that follows it marks location inside.",
+              explanation: [
+                "'में' means 'in': 'घर में' = 'in the house'.",
+                "'पर' means 'on': 'मेज़ पर' = 'on the table'.",
+                "'से' means 'from' or 'by'; 'को' marks a destination or an indirect object.",
+                "Hindi postpositions follow the noun, unlike English prepositions."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "hi-s1",
+              title: "Script & Sounds",
+              icon: "quote",
+              summary: "Devanagari is systematic: consonants carry an inherent vowel, and matras change it.",
+              points: [
+                "Devanagari is written left to right and has no capital letters.",
+                "A consonant letter carries an inherent 'a' sound; vowel signs (matras) attach around it to change the vowel.",
+                "Hindi distinguishes aspirated from unaspirated consonants — 'क' (ka) versus 'ख' (kha).",
+                "Retroflex consonants (ट, ड, ण) are pronounced with the tongue curled back; English has no exact equivalent."
+              ]
+            },
+            {
+              id: "hi-s2",
+              title: "Sentence Structure",
+              icon: "route",
+              summary: "Subject, object, verb — with postpositions trailing their nouns.",
+              points: [
+                "Neutral order is Subject - Object - Verb: 'मैं चाय पीता हूँ' (I tea drink).",
+                "Postpositions follow the noun: 'मेज़ पर' (on the table), 'घर में' (in the house).",
+                "Verbs agree with the subject in person, number and gender: 'वह पढ़ता है' (he reads), 'वह पढ़ती है' (she reads).",
+                "'है' is singular and 'हैं' plural or formal: 'वे ठीक हैं'."
+              ]
+            },
+            {
+              id: "hi-s3",
+              title: "Politeness & Pronouns",
+              icon: "layers",
+              summary: "Hindi has three levels of 'you', and the verb changes with the level you choose.",
+              points: [
+                "'आप' is formal and respectful; 'तुम' is informal; 'तू' is intimate or deliberately rude outside close relationships.",
+                "The verb agrees with the pronoun: 'आप कैसे हैं?', 'तुम कैसे हो?', 'तू कैसा है?'.",
+                "The infinitive ends in -ना: पढ़ना (to read), खाना (to eat), जाना (to go).",
+                "Requests soften with 'कृपया' (please) and the polite imperative: 'कृपया बैठिए'."
+              ]
+            }
+          ],
+          mistakes: [
+            "Using English SVO order and placing the verb before the object.",
+            "Putting a postposition before its noun, as English does with prepositions.",
+            "Mixing 'है' and 'हैं' — plural subjects need 'हैं'.",
+            "Using 'तू' with strangers; it sounds confrontational outside intimate contexts."
+          ],
+          tips: [
+            {
+              title: "Read Devanagari Aloud",
+              icon: "quote",
+              body: "Read one line of Devanagari aloud every day, even if you do not know every word. Sounding out the script builds the decoding speed that everything else depends on."
+            },
+            {
+              title: "Postpositions as Chunks",
+              icon: "repeat-2",
+              body: "Memorize location phrases whole: 'घर में', 'मेज़ पर', 'स्कूल से'. Chunks teach the postposition and the noun together, which is how fluent speech retrieves them."
+            },
+            {
+              title: "Shadow a Scene",
+              icon: "play",
+              body: "Choose a 30-second dialogue from a film or lesson, play one line, and repeat it with the same intonation. Hindi rhythm and aspiration are easier to copy than to describe."
+            }
+          ],
+          videos: [
+            {
+              youtube: "zQlQWjr8VxA",
+              title: "Learn Hindi - Hindi in Three Minutes - Greetings",
+              channel: "Learn Hindi with HindiPod101.com",
+              takeaways: [
+                "Common greetings for different situations.",
+                "How politeness changes the phrase you choose.",
+                "Clear pronunciation of everyday expressions."
+              ]
+            },
+            {
+              youtube: "GGRZUlVa74c",
+              title: "Learn Hindi in 50 Minutes - ALL Basics Every Beginners Need",
+              channel: "Learn Hindi with HindiPod101.com",
+              takeaways: [
+                "A broad tour of beginner vocabulary and phrases.",
+                "How basic sentences are assembled.",
+                "Listening practice with native-speed speech."
+              ]
+            }
+          ]
+        },
+
+        /* ------------------------------------------------------------------
+           MANDARIN CHINESE
+           ------------------------------------------------------------------ */
+        {
+          id: "mandarin",
+          title: "Mandarin Chinese",
+          icon: "sparkles",
+          accent: "rose",
+          level: "Beginner",
+          blurb: "Tones, measure words and word order — the parts of Mandarin that reward daily listening.",
+          tags: ["Mandarin", "Chinese", "tones", "pinyin", "measure words", "HSK"],
+          questions: [
+            {
+              id: "zh-1",
+              difficulty: "Beginner",
+              tags: ["tones", "pronunciation", "pinyin"],
+              prompt: "Which tone is 'mā' (妈)?",
+              options: ["First tone — high and level", "Second tone — rising", "Third tone — dipping", "Fourth tone — falling"],
+              answer: 0,
+              hint: "The flat line over the a is the clue.",
+              explanation: [
+                "The macron in 'mā' marks the first tone: a high, level pitch.",
+                "'má' is the second (rising) tone, 'mǎ' the third (dipping), and 'mà' the fourth (falling).",
+                "The same syllable with a different tone is a different word: 妈 (mother), 麻 (hemp), 马 (horse), 骂 (scold).",
+                "Tones are not decoration; they are part of the pronunciation and must be learned with the word."
+              ]
+            },
+            {
+              id: "zh-2",
+              difficulty: "Beginner",
+              tags: ["measure words", "nouns", "grammar"],
+              prompt: "Which measure word goes with '书' (book)?",
+              options: ["本", "张", "只", "杯"],
+              answer: 0,
+              hint: "This measure word is used for books and other bound volumes.",
+              explanation: [
+                "'本' (běn) is the measure word for books: '一本书' (one book).",
+                "'张' is used for flat objects such as paper or tables.",
+                "'只' is used for many animals and for one of a pair.",
+                "'杯' is used for cups or glasses of liquid."
+              ]
+            },
+            {
+              id: "zh-3",
+              difficulty: "Intermediate",
+              tags: ["aspect", "grammar", "了"],
+              prompt: "What does the particle '了' often mark?",
+              options: [
+                "A completed action or a change of state",
+                "A question",
+                "A plural noun",
+                "A past habit"
+              ],
+              answer: 0,
+              hint: "It is aspect, not tense: it presents an action as completed or a situation as new.",
+              explanation: [
+                "'了' commonly marks a completed action: '我吃了' (I have eaten).",
+                "It can also signal a change of state: '下雨了' (it has started raining).",
+                "It is not a past-tense marker — Mandarin does not conjugate verbs for tense.",
+                "Questions use '吗' at the end or a question word; '了' does not make a sentence a question."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "zh-s1",
+              title: "Tones & Pinyin",
+              icon: "waves",
+              summary: "Pinyin is a pronunciation guide; the tone mark is as important as the letters.",
+              points: [
+                "Four main tones plus a neutral tone: high level, rising, dipping, falling, and light.",
+                "Tone marks sit over the main vowel: mā, má, mǎ, mà, ma.",
+                "Third tones change before other tones; in natural speech, two third tones often become second + third.",
+                "Practise tone pairs, not just single syllables, because real words combine tones."
+              ]
+            },
+            {
+              id: "zh-s2",
+              title: "Measure Words",
+              icon: "hash",
+              summary: "Between a number and a noun, Mandarin requires a measure word.",
+              points: [
+                "The pattern is number/demonstrative + measure word + noun: '三本书' (three books).",
+                "'个' is the generic measure word and is acceptable when you do not know the specific one.",
+                "'本' is for books, '张' for flat objects, '只' for many animals, '杯' for cups of liquid.",
+                "Measure words also appear after '这' and '那': '这本书' (this book)."
+              ]
+            },
+            {
+              id: "zh-s3",
+              title: "Basic Word Order",
+              icon: "route",
+              summary: "Subject - verb - object, with time before the verb and no conjugation.",
+              points: [
+                "Neutral order is SVO: '我学习中文' (I study Chinese).",
+                "Time phrases usually come before the verb: '我明天学习中文' (I will study Chinese tomorrow).",
+                "'是' links nouns: '我是学生' (I am a student). Adjectives do not need '是'.",
+                "Questions can use '吗' at the end: '你是学生吗?' (Are you a student?).",
+                "Verbs do not change for person or tense; aspect particles such as '了' and '过' do the work."
+              ]
+            }
+          ],
+          mistakes: [
+            "Ignoring tones and relying on context to rescue the meaning.",
+            "Using '个' for every noun — understandable, but specific measure words sound far more natural.",
+            "Inserting '是' before adjectives: say '我很好', not '我是很好'.",
+            "Putting a time phrase after the verb instead of before it."
+          ],
+          tips: [
+            {
+              title: "Tone Pairs Daily",
+              icon: "play",
+              body: "Drill five tone pairs a day — first + fourth, second + third, and so on. Record yourself and compare with a native model; single tones are easy, but tone combinations are where learners drift."
+            },
+            {
+              title: "Characters in Context",
+              icon: "book-open",
+              body: "Learn characters inside words, not from isolated flashcards. '学' is easier to retain in '学生' (student) and '学习' (study) because the meaning and sound have a home."
+            },
+            {
+              title: "Record and Compare",
+              icon: "quote",
+              body: "Read one sentence aloud, record it, then listen to a native speaker say the same line. Focus on pitch contour rather than individual sounds; Mandarin accuracy is largely a melody problem."
+            }
+          ],
+          videos: [
+            {
+              youtube: "n_Cj3aOSI1w",
+              title: "Master Chinese Tones | Pronunciation Training",
+              channel: "Grace Mandarin Chinese",
+              takeaways: [
+                "The pitch shape of each tone.",
+                "Common myths about the third tone.",
+                "Practice phrases for building tone accuracy."
+              ]
+            },
+            {
+              youtube: "5BNxDj_h9iQ",
+              title: "Top 25 Common Measure Words in Chinese (with Examples!)",
+              channel: "Grace Mandarin Chinese",
+              takeaways: [
+                "Why measure words are required in Chinese.",
+                "The most useful measure words and the nouns they pair with.",
+                "Example phrases you can reuse immediately."
+              ]
+            }
+          ]
+        },
+
+        /* ------------------------------------------------------------------
+           JAPANESE
+           ------------------------------------------------------------------ */
+        {
+          id: "japanese",
+          title: "Japanese",
+          icon: "pen-line",
+          accent: "violet",
+          level: "Beginner",
+          blurb: "Kana, particles and polite forms — start reading Japanese and stop translating word by word.",
+          tags: ["Japanese", "hiragana", "katakana", "particles", "politeness", "SOV"],
+          questions: [
+            {
+              id: "ja-1",
+              difficulty: "Beginner",
+              tags: ["particles", "grammar", "topic"],
+              prompt: "Which particle marks the topic of a sentence?",
+              options: ["は (wa)", "を (wo)", "に (ni)", "で (de)"],
+              answer: 0,
+              hint: "As a particle it is pronounced 'wa', even though the kana is written 'ha'.",
+              explanation: [
+                "'は' marks the topic: '私は学生です' (As for me, I am a student).",
+                "As a particle it is pronounced 'wa'; elsewhere the same kana is read 'ha'.",
+                "'を' marks the direct object, 'に' marks direction or time, and 'で' marks location or means.",
+                "Topic and subject are not identical: 'は' highlights what the sentence is about, while 'が' identifies the subject."
+              ]
+            },
+            {
+              id: "ja-2",
+              difficulty: "Beginner",
+              tags: ["vocabulary", "greetings"],
+              prompt: "What does 'ありがとう' mean?",
+              options: ["Thank you", "Good morning", "Excuse me", "Goodbye"],
+              answer: 0,
+              hint: "It is one of the first phrases every Japanese learner picks up.",
+              explanation: [
+                "'ありがとう' (arigatou) means 'thank you' in casual speech.",
+                "The polite version is 'ありがとうございます'.",
+                "'おはよう' means good morning; 'すみません' means excuse me or sorry; 'さようなら' means goodbye.",
+                "Use the polite form with strangers, teachers and anyone senior to you."
+              ]
+            },
+            {
+              id: "ja-3",
+              difficulty: "Beginner",
+              tags: ["verbs", "politeness", "present tense"],
+              prompt: "Which is the polite present form of '食べる' (to eat)?",
+              options: ["食べます", "食べた", "食べない", "食べろ"],
+              answer: 0,
+              hint: "Polite verbs end in -ます in the present and future.",
+              explanation: [
+                "'食べます' (tabemasu) is the polite present/future form: 'I eat' or 'I will eat'.",
+                "'食べた' is the casual past, '食べない' the casual negative, and '食べろ' a blunt imperative.",
+                "Japanese verbs do not change for person; politeness and tense are the main distinctions.",
+                "The casual present is simply '食べる'."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "ja-s1",
+              title: "Kana & Sounds",
+              icon: "waves",
+              summary: "Japanese is syllable-timed: each kana is one mora, and length matters.",
+              points: [
+                "Hiragana is used for native words and grammar; katakana for loanwords, names and emphasis.",
+                "Each kana represents one mora — a beat. Long vowels and the small 'っ' add beats and change meaning.",
+                "The particle 'は' is pronounced 'wa', and the object particle 'を' is pronounced 'o'.",
+                "Japanese has pitch accent rather than stress; listen for the rise and fall rather than a loud syllable."
+              ]
+            },
+            {
+              id: "ja-s2",
+              title: "Particles & Order",
+              icon: "route",
+              summary: "The verb comes last, and particles label every noun before it.",
+              points: [
+                "Neutral order is Subject - Object - Verb: '私はパンを食べます' (I eat bread).",
+                "'は' marks the topic, 'が' the subject, 'を' the direct object.",
+                "'に' marks direction, destination or time; 'で' marks where an action happens or the means used.",
+                "The verb is final in a neutral sentence; moving it changes emphasis or sounds unnatural."
+              ]
+            },
+            {
+              id: "ja-s3",
+              title: "Politeness",
+              icon: "layers",
+              summary: "Politeness is built into verb endings and vocabulary, not just tone of voice.",
+              points: [
+                "Polite speech uses 'です' for nouns and adjectives and '-ます' for verbs.",
+                "Casual speech uses the plain verb form and is appropriate with close friends and family.",
+                "'お願いします' is a versatile polite request meaning 'please' or 'I ask you'.",
+                "Honorific prefixes such as 'お-' and 'ご-' raise the register of everyday words."
+              ]
+            }
+          ],
+          mistakes: [
+            "Reading the topic particle 'は' as 'ha' instead of 'wa'.",
+            "Dropping particles because English does not need them.",
+            "Using casual forms with strangers, teachers or colleagues.",
+            "Assuming Japanese words are separated by spaces; they are not."
+          ],
+          tips: [
+            {
+              title: "Read Kana Every Day",
+              icon: "book-open",
+              body: "Read one short line of hiragana aloud daily until recognition is instant. Do not rush into kanji: kana fluency makes every later textbook page cheaper to read."
+            },
+            {
+              title: "Particles in Sentences",
+              icon: "repeat-2",
+              body: "Learn each particle through three complete sentences, not a definition. 'に' in '学校に行きます' and 'で' in '学校で勉強します' will stick better than a translation table."
+            },
+            {
+              title: "Shadow Audio",
+              icon: "play",
+              body: "Play a short line, pause, and repeat it with the same rhythm and pitch. Japanese politeness and particle timing are easier to copy by ear than to assemble from rules."
+            }
+          ],
+          videos: [
+            {
+              youtube: "M4AU-K5yJRw",
+              title: "Level 1 Japanese - Week 8: How to Use Basic Greetings in Japanese",
+              channel: "Learn Japanese with JapanesePod101.com",
+              takeaways: [
+                "Greetings for different times of day.",
+                "Formal versus casual greeting choices.",
+                "A short model dialogue to repeat."
+              ]
+            },
+            {
+              youtube: "GUymRdqBglo",
+              title: "Japanese Lesson 1: XはYです, Particles, Absolute Beginner",
+              channel: "Japanese Ammo with Misa",
+              takeaways: [
+                "How the topic particle は works.",
+                "Why こんにちは is written with は.",
+                "How to build a basic XはYです sentence."
+              ]
+            }
+          ]
+        },
+
+        /* ------------------------------------------------------------------
+           ARABIC
+           ------------------------------------------------------------------ */
+        {
+          id: "arabic",
+          title: "Arabic",
+          icon: "notebook-pen",
+          accent: "teal",
+          level: "Beginner",
+          blurb: "The script, the root system and nominal sentences — a reading-first start to Modern Standard Arabic.",
+          tags: ["Arabic", "alphabet", "roots", "MSA", "script", "nominal sentences"],
+          questions: [
+            {
+              id: "ar-1",
+              difficulty: "Beginner",
+              tags: ["script", "reading", "direction"],
+              prompt: "In which direction is Arabic written?",
+              options: ["Right to left", "Left to right", "Top to bottom", "Alternating by line"],
+              answer: 0,
+              hint: "The first letter of a word is on the right.",
+              explanation: [
+                "Arabic is written and read from right to left.",
+                "Numbers are a notable exception: they run left to right within the text.",
+                "Books open from what English readers would call the back.",
+                "Letters join within words, and their shape changes depending on their position."
+              ]
+            },
+            {
+              id: "ar-2",
+              difficulty: "Beginner",
+              tags: ["articles", "grammar", "definiteness"],
+              prompt: "What is the Arabic definite article?",
+              options: ["ال (al-)", "لا (la)", "من (min)", "في (fi)"],
+              answer: 0,
+              hint: "It is a prefix attached to the noun, not a separate word.",
+              explanation: [
+                "'ال' (al-) is the definite article and attaches to the front of the noun: 'الكتاب' (the book).",
+                "'لا' means 'no'; 'من' means 'from' or 'who'; 'في' means 'in'.",
+                "Arabic has no indefinite article — an unmarked noun is indefinite: 'كتاب' (a book).",
+                "The 'l' of 'ال' assimilates to certain 'sun letters', so 'الشمس' sounds like 'ash-shams'."
+              ]
+            },
+            {
+              id: "ar-3",
+              difficulty: "Beginner",
+              tags: ["roots", "vocabulary", "morphology"],
+              prompt: "The root ك-ت-ب is associated with...",
+              options: ["writing", "eating", "travelling", "sleeping"],
+              answer: 0,
+              hint: "'كتاب' means book and 'كاتب' means writer.",
+              explanation: [
+                "The root ك-ت-ب carries the core meaning of writing.",
+                "'كتب' (kataba) means 'he wrote'; 'كتاب' (kitāb) means 'book'; 'كاتب' (kātib) means 'writer'.",
+                "Arabic builds many words by placing the same root consonants into different patterns.",
+                "Learning roots lets you recognise word families instead of memorizing every word separately."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "ar-s1",
+              title: "Script & Sounds",
+              icon: "quote",
+              summary: "Twenty-eight letters, four positional forms and a right-to-left baseline.",
+              points: [
+                "Arabic has 28 letters and is written right to left; there are no capital letters.",
+                "Most letters change shape depending on whether they are isolated, initial, medial or final.",
+                "Short vowels are usually written as diacritics above or below the letters, and are often omitted in everyday text.",
+                "'Sun letters' assimilate the 'l' of the definite article; 'moon letters' keep it pronounced."
+              ]
+            },
+            {
+              id: "ar-s2",
+              title: "Roots & Patterns",
+              icon: "layers",
+              summary: "Most Arabic vocabulary is built from three-consonant roots fitted into patterns.",
+              points: [
+                "A triliteral root such as ك-ت-ب supplies the core meaning; the pattern supplies the grammar.",
+                "From ك-ت-ب: 'kataba' (he wrote), 'kitāb' (book), 'kātib' (writer), 'maktab' (office or desk).",
+                "Modern Standard Arabic is the formal written register; spoken dialects differ substantially.",
+                "A dictionary usually lists words by root, so learning to spot roots is a reading skill."
+              ]
+            },
+            {
+              id: "ar-s3",
+              title: "Nominal Sentences",
+              icon: "route",
+              summary: "Arabic can say 'the book new' without any word for 'is'.",
+              points: [
+                "A nominal sentence begins with a noun and needs no present-tense 'to be': 'الكتاب جديد' (the book is new).",
+                "Adjectives follow the noun and agree in gender, number and definiteness: 'كتاب جديد' (a new book).",
+                "Possession is expressed by putting two nouns together: 'كتاب الطالب' (the student's book).",
+                "Questions often begin with 'هل' (hal) for yes/no, or a question word such as 'ما' (what) or 'أين' (where)."
+              ]
+            }
+          ],
+          mistakes: [
+            "Reading Arabic left to right.",
+            "Treating short-vowel diacritics as optional letters; they are markings, and adult texts often omit them.",
+            "Mixing dialect forms into formal writing without knowing the register.",
+            "Putting adjectives before nouns; Arabic adjectives normally follow the noun."
+          ],
+          tips: [
+            {
+              title: "Learn Letter Forms",
+              icon: "pencil-line",
+              body: "Write each letter in all four positions — isolated, initial, medial, final — on one line. Copying the shapes by hand is faster than recognising them only on a screen."
+            },
+            {
+              title: "Build Root Families",
+              icon: "repeat-2",
+              body: "Keep a page per root. Add every word you meet that shares it, with the pattern marked. After ten roots, new vocabulary starts to look familiar instead of random."
+            },
+            {
+              title: "Listen to MSA Daily",
+              icon: "play",
+              body: "Use short news clips or learner dialogues in Modern Standard Arabic. Even five minutes a day trains your ear for the formal register you will read in books and exams."
+            }
+          ],
+          videos: [
+            {
+              youtube: "QSLtNmRflBU",
+              title: "Learn Arabic - Arabic Alphabet Made Easy - Alef and Nun",
+              channel: "Learn Arabic with ArabicPod101.com",
+              takeaways: [
+                "How to write the letters alef and nun.",
+                "How letter shapes change by position.",
+                "A first written word using the new letters."
+              ]
+            },
+            {
+              youtube: "LdqGMcQuf0Y",
+              title: "49 Basic Arabic Phrases for ALL Situations to Start as a Beginner",
+              channel: "Learn Arabic with ArabicPod101.com",
+              takeaways: [
+                "A broad set of survival phrases.",
+                "Everyday vocabulary for introductions and directions.",
+                "Listening practice with native pronunciation."
+              ]
+            }
+          ]
+        },
+
+        /* ------------------------------------------------------------------
+           ENGLISH LANGUAGE
+           ------------------------------------------------------------------ */
+        {
+          id: "english-language",
+          title: "English Language",
+          icon: "file-text",
+          accent: "sky",
+          level: "Intermediate",
+          blurb: "Sentence structure, register and punctuation — the editing habits that make written English precise.",
+          tags: ["English", "grammar", "syntax", "register", "punctuation", "editing"],
+          questions: [
+            {
+              id: "engl-1",
+              difficulty: "Intermediate",
+              tags: ["subjunctive", "conditionals", "grammar"],
+              prompt: "Which sentence uses the subjunctive correctly?",
+              options: [
+                "If I were you, I would apologise.",
+                "If I was you, I would apologise.",
+                "If I am you, I would apologise.",
+                "If I be you, I would apologise."
+              ],
+              answer: 0,
+              hint: "In a hypothetical condition that is contrary to fact, formal English uses 'were' for all persons.",
+              explanation: [
+                "'If I were you' is the standard subjunctive form for an unreal or hypothetical condition.",
+                "'If I was you' is common in informal speech but is avoided in formal writing.",
+                "The main clause uses 'would' + base verb: 'I would apologise'.",
+                "The subjunctive also appears in 'I suggest that he be informed' and 'It is essential that she attend'."
+              ]
+            },
+            {
+              id: "engl-2",
+              difficulty: "Intermediate",
+              tags: ["passive voice", "voice", "syntax"],
+              prompt: "'The cake was eaten by Sam' is an example of...",
+              options: ["The passive voice", "The active voice", "An imperative", "A interrogative"],
+              answer: 0,
+              hint: "The subject receives the action rather than performing it.",
+              explanation: [
+                "In the passive voice, the subject is acted upon: 'The cake was eaten'.",
+                "The active version is 'Sam ate the cake', where Sam performs the action.",
+                "Passive forms use a form of 'be' plus a past participle.",
+                "Use the passive when the actor is unknown, unimportant or deliberately backgrounded."
+              ]
+            },
+            {
+              id: "engl-3",
+              difficulty: "Intermediate",
+              tags: ["register", "politeness", "writing"],
+              prompt: "Which is the most formal request?",
+              options: [
+                "Could you possibly send the report?",
+                "Send the report.",
+                "Can you send it?",
+                "Gimme the report."
+              ],
+              answer: 0,
+              hint: "Hedging and modal distance raise the register.",
+              explanation: [
+                "'Could you possibly send the report?' uses a past-modal form and a hedge, making it the most formal.",
+                "'Can you send it?' is neutral and conversational.",
+                "'Send the report' is a direct imperative and can sound abrupt.",
+                "'Gimme the report' is highly informal and inappropriate in professional writing."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "engl-s1",
+              title: "Sentence Structure",
+              icon: "route",
+              summary: "Every sentence needs a subject and a finite verb; everything else is decoration.",
+              points: [
+                "A finite clause contains a subject and a verb marked for tense: 'She writes.'",
+                "Coordination joins equal clauses with 'and', 'but', 'or'; subordination makes one clause depend on another.",
+                "The active voice is usually clearer: 'The team wrote the report' beats 'The report was written by the team'.",
+                "A fragment is a group of words punctuated as a sentence but missing a subject, a finite verb or a complete thought."
+              ]
+            },
+            {
+              id: "engl-s2",
+              title: "Register & Tone",
+              icon: "layers",
+              summary: "The same idea can be polite, neutral or blunt — register is a deliberate choice.",
+              points: [
+                "Formal writing avoids contractions, slang and vague fillers; informal writing can use all three.",
+                "Modal verbs soften requests and claims: 'could', 'might', 'would'.",
+                "Hedging phrases such as 'it appears that' and 'to some extent' create distance from a claim.",
+                "Match register to audience: an email to a client is not a message to a friend."
+              ]
+            },
+            {
+              id: "engl-s3",
+              title: "Punctuation & Clarity",
+              icon: "pencil-line",
+              summary: "Punctuation is structure made visible; most errors are sentence-boundary errors.",
+              points: [
+                "A comma splice joins two independent clauses with only a comma; use a full stop, semicolon or conjunction.",
+                "A semicolon links closely related independent clauses; a colon introduces an explanation or list.",
+                "Apostrophes mark possession ('the student's book') or contraction ('don't'), not plurals.",
+                "Keep parallel items in the same grammatical form: 'reading, writing and editing', not 'reading, to write and edits'."
+              ]
+            }
+          ],
+          mistakes: [
+            "Joining two complete sentences with only a comma (a comma splice).",
+            "Writing 'could of' instead of 'could have'.",
+            "Shifting tense without a reason: 'She walks in and sat down'.",
+            "Overusing the passive voice until the actor disappears from the sentence."
+          ],
+          tips: [
+            {
+              title: "Read It Aloud",
+              icon: "quote",
+              body: "Read your draft aloud and mark every place you run out of breath or stumble. Those marks usually correspond to missing punctuation or an overlong sentence."
+            },
+            {
+              title: "Combine, Then Cut",
+              icon: "split",
+              body: "Edit in two passes: first combine choppy sentences into clear clauses, then cut every word that does not change the meaning. The result is tighter without sounding clipped."
+            },
+            {
+              title: "Collect Real Sentences",
+              icon: "book-open",
+              body: "Copy one well-built sentence a day from an article or essay you admire, then label its main clause, subordinate clause and punctuation. Imitating structure is faster than memorizing rules."
+            }
+          ],
+          videos: [
+            {
+              youtube: "aDKa9MinM2I",
+              title: "English Sentence Structure and Word Order in English",
+              channel: "English Fluency Journey",
+              takeaways: [
+                "How English orders subject, verb and object.",
+                "Where adverbs and time phrases fit.",
+                "Common word-order mistakes and how to fix them."
+              ]
+            },
+            {
+              youtube: "nI5zaB6QL-o",
+              title: "Present and past passives - 6 Minute Grammar",
+              channel: "BBC Learning English",
+              takeaways: [
+                "How to form present and past passive sentences.",
+                "When the passive is clearer than the active.",
+                "A short quiz to check the forms."
               ]
             }
           ]
