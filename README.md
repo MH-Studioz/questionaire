@@ -35,6 +35,8 @@ git push origin main
 | `ap-courses.js` | All 42 AP course packs and their exam-focused content |
 | `exam-prep.js` | SAT, ACT, PSAT, GED and GRE banks (1,000 questions per exam) |
 | `new-subjects.js` | Sixteen additional Mathematics, Science, Humanities, Language and Study Vault subjects |
+| `expanded-core.js` | Factory and new categories for the large subject catalogue |
+| `expanded-*.js` | Mathematics, science, engineering, health, arts, humanities, social-science and language catalogue data |
 | `subject-banks.js` | Lazy 1,000-question generator that fills every subject bank |
 | `firebase-config.js` | Public Firebase web config (blank until the project exists) |
 | `firebase-sync.js` | Anonymous/Google auth, owner-only Firestore reads and writes |
@@ -42,9 +44,9 @@ git push origin main
 
 ## Content
 
-Seven sections: AP Courses, Exam Prep, Mathematics, Sciences, Humanities, Languages and the Universal Study Vault. The catalogue has 91 subjects and a 91,000-question target: 1,000 questions per subject.
+Eleven sections: AP Courses, Exam Prep, Mathematics, Sciences, Humanities, Engineering & Computing, Health & Medicine, Creative Arts, Social Sciences & Law, Languages and the Universal Study Vault. The catalogue has 443 subjects and a 443,000-question target: 1,000 questions per subject.
 
-Every subject keeps its curated anchor questions first. The remaining questions are built lazily by `subject-banks.js` when a subject is opened or pulled into the review queue, so the static page does not boot all 91,000 cards at once. Search indexes a 20-question sample per subject. Generated ids use the stable `<subject-id>-g0001` format, which lets progress, bookmarks and mistakes survive before that subject's bank is materialised. The generated items are subject-specific practice drills rather than official exam questions.
+Every subject keeps its curated anchor questions first. The remaining questions are built lazily by `subject-banks.js` when a subject is opened or pulled into the review queue, so the static page does not boot all 443,000 cards at once. Search indexes a 20-question sample per subject. Generated ids use the stable `<subject-id>-g0001` format, which lets progress, bookmarks and mistakes survive before that subject's bank is materialised. The generated items are subject-specific practice drills rather than official exam questions.
 
 The AP shelf covers all 42 courses in the College Board catalogue for 2026-27: the Arts, English, History and Social Sciences, Math and Computer Science, Sciences, World Languages, AP Capstone and the two AP Career Kickstart courses. Each AP course has two curated exam-style questions, two study cards and two tips, and its bank is expanded to 1,000 questions by the shared generator. AP Networking is not included because it is a 2026-27 pilot and does not join the catalog until Fall 2027.
 
@@ -60,11 +62,13 @@ The AP shelf covers all 42 courses in the College Board catalogue for 2026-27: t
 
 The banks are generated from seeded item families and are stable across reloads, so progress ids do not change. They are practice drills, not official College Board, ACT, GED or ETS questions. Official full-length tests should still be taken through the testing companies.
 
-Languages includes Spanish, French, German, Portuguese, Hindi, Mandarin Chinese, Japanese, Arabic, English Language, Korean and Russian, each with curated anchor questions, study cards and tips.
+Every language has curated anchor questions, study cards and tips; the headline languages also have vocabulary drills built into their banks.
 
-The expansion adds Geometry, Trigonometry, Linear Algebra and Data Science; Anatomy & Physiology, Microbiology and Environmental Science; Philosophy, Psychology, Applied Economics, Sociology and Political Science; Korean and Russian; and Research Methods and Financial Literacy in the Study Vault.
+The expansion covers advanced mathematics from set theory and topology to analysis, combinatorics and mathematical finance; physics, chemistry, biology, Earth science, astronomy, medicine and engineering; music, visual art, film and design; history, philosophy, literature, linguistics, law, business and social science; and a much larger world-language shelf.
 
-To add a subject, copy a block in `database.js` or `new-subjects.js`, give it a unique `id`, and prefix every question id with the subject id. The schema is documented at the top of `database.js`.
+The language shelf now includes Spanish, French, German, Portuguese, Hindi, Mandarin Chinese, Japanese, Arabic, English Language, Korean, Russian, Italian, Somali, Vietnamese, Turkish, Swahili, Polish, Dutch, Greek, Bengali, Urdu, Persian, Thai, Indonesian, Tagalog, Swedish, Norwegian, Danish, Finnish, Czech, Ukrainian, Romanian, Hungarian, Bulgarian, Serbian, Croatian, Catalan, Amharic, Zulu, Hausa, Yoruba, Igbo, Hebrew, Latin, Ancient Greek, Afrikaans and Icelandic.
+
+To add a subject, copy a block in `database.js` or `new-subjects.js`, or add a compact spec to the relevant `expanded-*.js` file. Give it a unique `id`, and prefix every question id with the subject id. The schema is documented at the top of `database.js`.
 
 ## Navigation
 

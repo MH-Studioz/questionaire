@@ -4,7 +4,7 @@
    Every subject gets a 1,000-question target. Curated questions stay first;
    the rest are built lazily from subject-specific seeds and domain pools when
    a subject is opened or searched. This keeps the static page from booting
-   ~91,000 cards at once while preserving stable generated question ids.
+   ~443,000 cards at once while preserving stable generated question ids.
 
    Generated ids use `<subject-id>-g0001` onwards. Progress and review counts
    can therefore survive before a bank is materialized in memory.
@@ -209,7 +209,39 @@
     russian: [["привет", "hello"], ["спасибо", "thank you"], ["книга", "book"], ["дом", "house"], ["вода", "water"], ["друг", "friend"], ["школа", "school"], ["есть", "to eat"], ["хороший", "good"], ["говорить", "to speak"]],
     italian: [["ciao", "hello"], ["grazie", "thank you"], ["libro", "book"], ["casa", "house"], ["acqua", "water"], ["amico", "friend"], ["scuola", "school"], ["mangiare", "to eat"], ["buono", "good"], ["parlare", "to speak"]],
     hebrew: [["שלום", "hello"], ["תודה", "thank you"], ["ספר", "book"], ["בית", "house"], ["מים", "water"], ["חבר", "friend"], ["בית ספר", "school"], ["לאכול", "to eat"], ["טוב", "good"], ["לדבר", "to speak"]],
-    latin: [["salve", "hello"], ["gratias", "thank you"], ["liber", "book"], ["domus", "house"], ["aqua", "water"], ["amicus", "friend"], ["schola", "school"], ["edere", "to eat"], ["bonus", "good"], ["loqui", "to speak"]]
+    latin: [["salve", "hello"], ["gratias", "thank you"], ["liber", "book"], ["domus", "house"], ["aqua", "water"], ["amicus", "friend"], ["schola", "school"], ["edere", "to eat"], ["bonus", "good"], ["loqui", "to speak"]],
+    somali: [["salaam", "hello"], ["mahadsanid", "thank you"], ["buug", "book"], ["guri", "house"], ["biyo", "water"], ["saaxiib", "friend"], ["dugsi", "school"], ["cun", "to eat"]],
+    vietnamese: [["xin chào", "hello"], ["cảm ơn", "thank you"], ["sách", "book"], ["nhà", "house"], ["nước", "water"], ["bạn", "friend"], ["trường", "school"], ["ăn", "to eat"]],
+    turkish: [["merhaba", "hello"], ["teşekkürler", "thank you"], ["kitap", "book"], ["ev", "house"], ["su", "water"], ["arkadaş", "friend"], ["okul", "school"], ["yemek", "to eat"]],
+    swahili: [["habari", "hello"], ["asante", "thank you"], ["kitabu", "book"], ["nyumba", "house"], ["maji", "water"], ["rafiki", "friend"], ["shule", "school"], ["kula", "to eat"]],
+    polish: [["cześć", "hello"], ["dziękuję", "thank you"], ["książka", "book"], ["dom", "house"], ["woda", "water"], ["przyjaciel", "friend"], ["szkoła", "school"], ["jeść", "to eat"]],
+    dutch: [["hallo", "hello"], ["dank je", "thank you"], ["boek", "book"], ["huis", "house"], ["water", "water"], ["vriend", "friend"], ["school", "school"], ["eten", "to eat"]],
+    greek: [["γεια σου", "hello"], ["ευχαριστώ", "thank you"], ["βιβλίο", "book"], ["σπίτι", "house"], ["νερό", "water"], ["φίλος", "friend"], ["σχολείο", "school"], ["τρώω", "to eat"]],
+    bengali: [["নমস্কার", "hello"], ["ধন্যবাদ", "thank you"], ["বই", "book"], ["বাড়ি", "house"], ["পানি", "water"], ["বন্ধু", "friend"], ["স্কুল", "school"], ["খাওয়া", "to eat"]],
+    urdu: [["سلام", "hello"], ["شکریہ", "thank you"], ["کتاب", "book"], ["گھر", "house"], ["پانی", "water"], ["دوست", "friend"], ["اسکول", "school"], ["کھانا", "to eat"]],
+    persian: [["سلام", "hello"], ["ممنون", "thank you"], ["کتاب", "book"], ["خانه", "house"], ["آب", "water"], ["دوست", "friend"], ["مدرسه", "school"], ["خوردن", "to eat"]],
+    thai: [["สวัสดี", "hello"], ["ขอบคุณ", "thank you"], ["หนังสือ", "book"], ["บ้าน", "house"], ["น้ำ", "water"], ["เพื่อน", "friend"], ["โรงเรียน", "school"], ["กิน", "to eat"]],
+    indonesian: [["halo", "hello"], ["terima kasih", "thank you"], ["buku", "book"], ["rumah", "house"], ["air", "water"], ["teman", "friend"], ["sekolah", "school"], ["makan", "to eat"]],
+    tagalog: [["kumusta", "hello"], ["salamat", "thank you"], ["libro", "book"], ["bahay", "house"], ["tubig", "water"], ["kaibigan", "friend"], ["paaralan", "school"], ["kumain", "to eat"]],
+    swedish: [["hej", "hello"], ["tack", "thank you"], ["bok", "book"], ["hus", "house"], ["vatten", "water"], ["vän", "friend"], ["skola", "school"], ["äta", "to eat"]],
+    norwegian: [["hei", "hello"], ["takk", "thank you"], ["bok", "book"], ["hus", "house"], ["vann", "water"], ["venn", "friend"], ["skole", "school"], ["spise", "to eat"]],
+    danish: [["hej", "hello"], ["tak", "thank you"], ["bog", "book"], ["hus", "house"], ["vand", "water"], ["ven", "friend"], ["skole", "school"], ["spise", "to eat"]],
+    finnish: [["hei", "hello"], ["kiitos", "thank you"], ["kirja", "book"], ["talo", "house"], ["vesi", "water"], ["ystävä", "friend"], ["koulu", "school"], ["syödä", "to eat"]],
+    czech: [["ahoj", "hello"], ["děkuji", "thank you"], ["kniha", "book"], ["dům", "house"], ["voda", "water"], ["přítel", "friend"], ["škola", "school"], ["jíst", "to eat"]],
+    ukrainian: [["привіт", "hello"], ["дякую", "thank you"], ["книга", "book"], ["дім", "house"], ["вода", "water"], ["друг", "friend"], ["школа", "school"], ["їсти", "to eat"]],
+    romanian: [["salut", "hello"], ["mulțumesc", "thank you"], ["carte", "book"], ["casă", "house"], ["apă", "water"], ["prieten", "friend"], ["școală", "school"], ["a mânca", "to eat"]],
+    hungarian: [["szia", "hello"], ["köszönöm", "thank you"], ["könyv", "book"], ["ház", "house"], ["víz", "water"], ["barát", "friend"], ["iskola", "school"], ["enni", "to eat"]],
+    bulgarian: [["здравей", "hello"], ["благодаря", "thank you"], ["книга", "book"], ["дом", "house"], ["вода", "water"], ["приятел", "friend"], ["училище", "school"], ["ям", "to eat"]],
+    serbian: [["здраво", "hello"], ["хвала", "thank you"], ["књига", "book"], ["кућа", "house"], ["вода", "water"], ["пријатељ", "friend"], ["школа", "school"], ["јести", "to eat"]],
+    croatian: [["bok", "hello"], ["hvala", "thank you"], ["knjiga", "book"], ["kuća", "house"], ["voda", "water"], ["prijatelj", "friend"], ["škola", "school"], ["jesti", "to eat"]],
+    catalan: [["hola", "hello"], ["gràcies", "thank you"], ["llibre", "book"], ["casa", "house"], ["aigua", "water"], ["amic", "friend"], ["escola", "school"], ["menjar", "to eat"]],
+    amharic: [["ሰላም", "hello"], ["አመሰግናለሁ", "thank you"], ["መጽሐፍ", "book"], ["ቤት", "house"], ["ውሃ", "water"], ["ጓደኛ", "friend"], ["ትምህርት ቤት", "school"], ["መብላት", "to eat"]],
+    zulu: [["sawubona", "hello"], ["ngiyabonga", "thank you"], ["incwadi", "book"], ["indlu", "house"], ["amanzi", "water"], ["umngane", "friend"], ["isikole", "school"], ["ukudla", "to eat"]],
+    hausa: [["sannu", "hello"], ["na gode", "thank you"], ["littafi", "book"], ["gida", "house"], ["ruwa", "water"], ["aboki", "friend"], ["makaranta", "school"], ["ci", "to eat"]],
+    yoruba: [["bawo ni", "hello"], ["ẹ ṣé", "thank you"], ["ìwé", "book"], ["ilé", "house"], ["omi", "water"], ["ọ̀rẹ́", "friend"], ["ilé-ìwé", "school"], ["jẹ", "to eat"]],
+    igbo: [["ndewo", "hello"], ["daalụ", "thank you"], ["akwụkwọ", "book"], ["ụlọ", "house"], ["mmiri", "water"], ["enyi", "friend"], ["ụlọ akwụkwọ", "school"], ["rie", "to eat"]],
+    afrikaans: [["hallo", "hello"], ["dankie", "thank you"], ["boek", "book"], ["huis", "house"], ["water", "water"], ["vriend", "friend"], ["skool", "school"], ["eet", "to eat"]],
+    icelandic: [["halló", "hello"], ["takk", "thank you"], ["bók", "book"], ["hús", "house"], ["vatn", "water"], ["vinur", "friend"], ["skóli", "school"], ["borða", "to eat"]]
   };
 
   /* --------------------------------------------------------------------------
@@ -457,13 +489,108 @@
   }
 
   /* --------------------------------------------------------------------------
+     Concept generator for specialised subjects
+     -------------------------------------------------------------------------- */
+
+  function pickConcepts(pool, correct, seed, count) {
+    const result = [];
+    if (!pool.length) return result;
+    let cursor = Math.abs(seed) % pool.length;
+    for (let step = 0; step < pool.length * 2 && result.length < count; step += 1) {
+      const candidate = pool[cursor % pool.length];
+      cursor += 1;
+      if (candidate && candidate !== correct && result.indexOf(candidate) < 0) result.push(candidate);
+    }
+    return result;
+  }
+
+  function conceptQuestion(subject, index) {
+    const terms = (subject._terms || [subject.title]).filter(Boolean);
+    const peerTerms = subject._peerTerms || [];
+    const peerTitles = subject._peerTitles || [];
+    const term = terms[index % terms.length];
+    const companion = terms[(index + 1) % terms.length];
+    const mode = Math.floor(index / terms.length) % 6;
+    const wrongTerms = pickConcepts(peerTerms, term, index * 7 + 3, 5);
+    const wrongTitles = pickConcepts(peerTitles, subject.title, index * 5 + 1, 5);
+    let draft;
+
+    if (mode === 0) {
+      draft = {
+        prompt: "Which idea belongs to " + subject.title + " alongside \"" + companion + "\"?",
+        correct: term,
+        wrongs: wrongTerms,
+        hint: "Choose the idea that belongs to this field, not a neighbouring one.",
+        explanation: ["\"" + term + "\" is a working concept in " + subject.title + "."],
+        tags: [subject.title, term]
+      };
+    } else if (mode === 1) {
+      draft = {
+        prompt: "Which field includes the idea \"" + term + "\"?",
+        correct: subject.title,
+        wrongs: wrongTitles,
+        hint: "Match the concept to the field that studies it.",
+        explanation: [term + " belongs to " + subject.title + "."],
+        tags: [subject.title, term]
+      };
+    } else if (mode === 2) {
+      draft = {
+        prompt: "Which term is a core idea in " + subject.title + "?",
+        correct: term,
+        wrongs: wrongTerms,
+        hint: "Use the field's vocabulary, not a generic word from another subject.",
+        explanation: [term + " is one of the concepts used in " + subject.title + "."],
+        tags: [subject.title, term]
+      };
+    } else if (mode === 3) {
+      draft = {
+        prompt: "Which subject would cover \"" + term + "\"?",
+        correct: subject.title,
+        wrongs: wrongTitles,
+        hint: "Identify the discipline rather than a nearby specialism.",
+        explanation: [term + " is studied within " + subject.title + "."],
+        tags: [subject.title, term]
+      };
+    } else if (mode === 4) {
+      draft = {
+        prompt: "Which statement names a working concept in " + subject.title + "?",
+        correct: term,
+        wrongs: wrongTerms,
+        hint: "Pick the term that belongs to the subject's own vocabulary.",
+        explanation: ["A working concept in " + subject.title + " is " + term + "."],
+        tags: [subject.title, term]
+      };
+    } else {
+      const peerTerm = wrongTerms[0] || "a neighbouring idea";
+      const peerTitle = wrongTitles[0] || "a neighbouring field";
+      const otherTitle = wrongTitles[1] || "another field";
+      const otherTerm = wrongTerms[1] || "another idea";
+      draft = {
+        prompt: "Which field and idea pair is correctly matched?",
+        correct: subject.title + " — " + term,
+        wrongs: [
+          subject.title + " — " + peerTerm,
+          peerTitle + " — " + term,
+          otherTitle + " — " + otherTerm
+        ],
+        hint: "Both halves of the pair must belong together.",
+        explanation: [subject.title + " uses the concept " + term + "."],
+        tags: [subject.title, term]
+      };
+    }
+    return draft;
+  }
+
+  /* --------------------------------------------------------------------------
      Build a question
      -------------------------------------------------------------------------- */
 
   function generateQuestion(subject, index, domain) {
     const random = rng(hash(subject.id + ":" + index));
     let draft;
-    if (domain === "math" || domain === "data" || domain === "calculus") {
+    if (domain === "concept") {
+      draft = conceptQuestion(subject, index);
+    } else if (domain === "math" || domain === "data" || domain === "calculus") {
       const families = mathFamilies(subject);
       draft = families[index % families.length](random, index);
     } else if (domain === "physics") {
@@ -476,7 +603,7 @@
       });
       const words = key ? LANG_WORDS[key] : null;
       if (!words) {
-        draft = poolQuestion(subject, index, VOCAB, seedFacts(subject));
+        draft = conceptQuestion(subject, index);
       } else {
         const entry = words[Math.floor(index / 4) % words.length];
         const form = index % 4;
@@ -517,7 +644,7 @@
       subject._seedQuestions = subject.questions.slice();
       subject._curatedCount = subject.questions.length;
       subject.questionTarget = Math.max(TARGET, subject.questions.length);
-      subject.bankDomain = classify(subject);
+      subject.bankDomain = subject._bankDomain || classify(subject);
       if (!subject.testConfig) {
         subject.testConfig = { questions: 20, secondsPerQuestion: 60, label: "Timed practice section" };
       }
