@@ -52,7 +52,7 @@ const STUDY_DATA = {
   meta: {
     title: "Questionaire",
     tagline: "A printed study annual for serious practice.",
-    version: "1.3.0",
+    version: "1.5.0",
     updated: "2026-11-18"
   },
 

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#14120e" id="theme-color" />
   <meta
     name="description"
-    content="Questionaire is a free, static study annual: question banks, cheat sheets, memory notes and video lessons for maths, sciences, humanities and languages."
+    content="Questionaire is a free, static study annual with question banks, cheat sheets and exam practice for every AP course, plus maths, sciences, humanities and languages."
   />
 
   <!-- Set the theme before first paint so the page never flashes the wrong palette. -->
@@ -66,9 +66,10 @@
   <!-- Icons -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
 
-  <link rel="stylesheet" href="styles.css?v=1.3.0" />
-  <script src="database.js?v=1.3.0" defer></script>
-  <script src="app.js?v=1.3.0" defer></script>
+  <link rel="stylesheet" href="styles.css?v=1.5.0" />
+  <script src="database.js?v=1.5.0" defer></script>
+  <script src="ap-courses.js?v=1.5.0" defer></script>
+  <script src="app.js?v=1.5.1" defer></script>
 </head>
 
 <body>
@@ -101,8 +102,16 @@
             <span class="sidebar-index">01</span>
             <span>Dashboard</span>
           </a>
-          <a class="sidebar-link" href="#/review" data-nav="review">
+          <a class="sidebar-link" href="#/browse" data-nav="browse">
             <span class="sidebar-index">02</span>
+            <span>Browse all subjects</span>
+          </a>
+          <a class="sidebar-link" href="#/browse/ap-courses">
+            <span class="sidebar-index">03</span>
+            <span>AP courses</span>
+          </a>
+          <a class="sidebar-link" href="#/review" data-nav="review">
+            <span class="sidebar-index">04</span>
             <span>Review queue</span>
             <span class="sidebar-count" id="saved-count">0</span>
           </a>
@@ -115,7 +124,7 @@
       <div class="sidebar-foot">
         <div class="sidebar-level" id="sidebar-level"></div>
         <a class="sidebar-link sidebar-settings" href="#/settings" data-nav="settings">
-          <span class="sidebar-index">03</span>
+          <span class="sidebar-index">05</span>
           <span>Settings &amp; progress</span>
         </a>
         <p class="sidebar-note">Local record. No account, no sync.</p>
@@ -137,7 +146,7 @@
             id="global-search"
             class="global-search"
             type="search"
-            placeholder="Search the annual — topics, formulas, questions"
+            placeholder="Search subjects, AP courses, topics and questions"
             autocomplete="off"
             aria-label="Search topics, formulas and questions"
             aria-controls="search-results"
@@ -174,10 +183,18 @@
 
       <footer class="site-footer">
         <p><strong>Questionaire</strong> — a printed study annual for the browser. No account, no tracker; progress stays on this device.</p>
-        <p class="site-footer-meta">Vol. 1 · 28 subjects · Set in Instrument Serif &amp; IBM Plex</p>
+        <p class="site-footer-meta" id="footer-meta">Vol. 1 · Study annual · Set in Instrument Serif &amp; IBM Plex</p>
       </footer>
     </div>
   </div>
+
+  <nav class="mobile-nav" aria-label="Quick navigation">
+    <a href="#/dashboard" data-nav="dashboard"><i data-lucide="home"></i><span>Home</span></a>
+    <a href="#/browse" data-nav="browse"><i data-lucide="compass"></i><span>Browse</span></a>
+    <a href="#/browse/ap-courses"><i data-lucide="landmark"></i><span>AP</span></a>
+    <a href="#/review" data-nav="review"><i data-lucide="star"></i><span>Review</span></a>
+    <button type="button" data-action="focus-search"><i data-lucide="search"></i><span>Search</span></button>
+  </nav>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </body>

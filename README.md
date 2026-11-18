@@ -1,6 +1,6 @@
 # Questionaire
 
-A static study annual for the browser: question banks, cheat sheets, memory notes and video lessons across maths, sciences, humanities and languages. Progress is stored locally and nothing is sent to a server.
+A static study annual for the browser: every current AP course plus question banks, cheat sheets, memory notes and video lessons across maths, sciences, humanities and languages. Progress is stored locally and nothing is sent to a server.
 
 **Live:** https://mh-studioz.github.io/questionaire/
 
@@ -32,12 +32,21 @@ git push origin main
 | `styles.css` | Paper, Ink and OLED themes plus layout |
 | `app.js` | Routing, practice, exam timer, review, search, localStorage |
 | `database.js` | Categories, subjects, questions, study cards, tips, videos |
+| `ap-courses.js` | All 42 AP course packs and their exam-focused content |
 
 ## Content
 
-Five sections: Mathematics, Sciences, Humanities, Languages and the Universal Study Vault. Languages currently includes Spanish, French, German, Portuguese, Hindi, Mandarin Chinese, Japanese, Arabic and English Language, with three questions, three study cards, three tips and two videos each.
+Six sections: AP Courses, Mathematics, Sciences, Humanities, Languages and the Universal Study Vault. The catalogue has 70 subjects and 179 questions.
+
+The AP shelf covers all 42 courses in the College Board catalogue for 2026-27: the Arts, English, History and Social Sciences, Math and Computer Science, Sciences, World Languages, AP Capstone and the two AP Career Kickstart courses. Each AP course has two exam-style questions, two study cards and two tips. AP Networking is not included because it is a 2026-27 pilot and does not join the catalog until Fall 2027.
+
+Languages includes Spanish, French, German, Portuguese, Hindi, Mandarin Chinese, Japanese, Arabic and English Language, with three questions, three study cards, three tips and two videos each.
 
 To add a subject, copy a block in `database.js`, give it a unique `id`, and prefix every question id with the subject id. The schema is documented at the top of that file.
+
+## Navigation
+
+The home page starts with search, a progress summary, recommended subjects and the AP shelf. **Browse all subjects** opens the full catalogue with section filters; the AP shelf adds subject-area filters. On phones, the bottom bar keeps Home, Browse, AP, Review and Search one tap away.
 
 ## Accounts (scoped, not live yet)
 

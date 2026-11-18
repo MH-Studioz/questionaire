@@ -436,6 +436,11 @@
     setText("saved-count", reviewCount());
 
     const panel = document.getElementById("sidebar-level");
+    const footerMeta = document.getElementById("footer-meta");
+    if (footerMeta) {
+      footerMeta.textContent = "Vol. 1 · " + SUBJECTS.length + " subjects · Set in Instrument Serif & IBM Plex";
+    }
+
     if (panel) {
       panel.innerHTML =
         '<div class="sidebar-level-top">' +
@@ -472,9 +477,12 @@
             );
           })
           .join("");
+        const isCurrent = state.route.name === "subject" && category.subjects.some(function (subject) {
+          return subject.id === state.route.subjectId;
+        });
         return (
-          '<div class="nav-group accent-' + esc(category.accent) + '">' +
-          '<button class="nav-group-head" type="button" aria-expanded="true">' +
+          '<div class="nav-group accent-' + esc(category.accent) + (isCurrent ? "" : " collapsed") + '">' +
+          '<button class="nav-group-head" type="button" aria-expanded="' + (isCurrent ? "true" : "false") + '">' +
           '<span class="nav-group-index">' + pad2(categoryIndex + 1) + "</span>" +
           '<span class="nav-group-title">' + esc(category.title) + "</span>" +
           '<span class="nav-group-count">' + category.subjects.length + "</span>" +
@@ -501,13 +509,24 @@
         tab: TAB_IDS.indexOf(parts[2]) >= 0 ? parts[2] : "practice"
       };
     }
+    if (parts[0] === "browse") {
+      const category = window.STUDY_DATA && window.STUDY_DATA.categories.some(function (item) {
+        return item.id === parts[1];
+      }) ? parts[1] : "all";
+      const tracks = ["arts", "english", "history", "math-cs", "sciences", "languages", "capstone", "career"];
+      return {
+        name: "browse",
+        category: category,
+        track: tracks.indexOf(parts[2]) >= 0 ? parts[2] : "all"
+      };
+    }
     if (parts[0] === "review" || parts[0] === "saved") return { name: "review" };
     if (parts[0] === "settings") return { name: "settings" };
     return { name: "dashboard" };
   }
 
   function routeKey(route) {
-    return route.name + ":" + (route.subjectId || "") + ":" + (route.tab || "");
+    return route.name + ":" + (route.subjectId || "") + ":" + (route.tab || "") + ":" + (route.category || "") + ":" + (route.track || "");
   }
 
   function go(hash) {
@@ -533,7 +552,10 @@
     state.route = route;
     state.routeKey = key;
 
-    if (changed) state.cards = {};
+    if (changed) {
+      state.cards = {};
+      renderSidebar();
+    }
     if (exam && !examMatches(route)) {
       exam = null;
       stopExamTimer();
@@ -542,6 +564,8 @@
     document.title =
       route.name === "subject"
         ? "Questionaire — " + SUBJECT_MAP.get(route.subjectId).subject.title
+        : route.name === "browse"
+        ? "Questionaire — Browse subjects"
         : route.name === "review"
         ? "Questionaire — Review queue"
         : route.name === "settings"
@@ -576,6 +600,9 @@
     switch (state.route.name) {
       case "subject":
         renderSubject();
+        break;
+      case "browse":
+        renderBrowse();
         break;
       case "review":
         renderReview();
@@ -628,7 +655,12 @@
       .sort(function (a, b) { return b.solved - a.solved; })
       .slice(0, 3)
       .map(function (item) { return item.entry; });
-    return active.length ? active : SUBJECTS.slice(0, 3);
+    if (active.length) return active;
+    const starterCategories = ["mathematics", "sciences", "languages"];
+    const starters = starterCategories.map(function (categoryId) {
+      return SUBJECTS.find(function (entry) { return entry.category.id === categoryId; });
+    }).filter(Boolean);
+    return starters.length ? starters : SUBJECTS.slice(0, 3);
   }
 
   function statCard(options) {
@@ -673,121 +705,147 @@
   function renderDashboard() {
     const stats = getStats();
     const totalQuestions = QUESTION_MAP.size;
-    const nextEntry = recommendedEntry();
-    const solvedPct = totalQuestions ? Math.round((stats.solved / totalQuestions) * 100) : 0;
-    const vault = SUBJECTS.filter(function (entry) { return entry.category.id === "vault"; });
+    const categories = window.STUDY_DATA.categories;
+    const apCategory = categories.find(function (category) { return category.id === "ap-courses"; });
+    const featuredAp = apCategory ? apCategory.subjects.slice(0, 6) : [];
+    const otherCategories = categories.filter(function (category) { return category.id !== "ap-courses"; });
+    const starts = continueEntries();
+    const continueLabel = stats.solved > 0 ? "Pick up where you left off" : "Good places to start";
 
-    const continueHTML = continueEntries().map(function (entry) {
-      const entryStats = subjectStats(entry.subject);
+    const categoryRows = otherCategories.map(function (category, index) {
       return (
-        '<a class="continue-item ' + accentClass(entry) + '" href="#/subject/' + esc(entry.subject.id) + '/practice">' +
-        '<span class="continue-icon"><i data-lucide="' + esc(entry.subject.icon) + '"></i></span>' +
-        '<span class="continue-body">' +
-        '<span class="continue-title">' + esc(entry.subject.title) + "</span>" +
-        '<span class="continue-sub">' + entryStats.solved + " of " + entryStats.total + " questions explored</span>" +
-        '<span class="continue-progress"><span class="progress"><span class="progress-bar" style="width:' + entryStats.pct + '%"></span></span></span>' +
-        "</span>" +
-        '<span class="continue-arrow"><i data-lucide="arrow-right"></i></span></a>'
-      );
-    }).join("");
-
-    const vaultHTML = vault.map(function (entry) {
-      return (
-        '<a class="vault-mini-card" href="#/subject/' + esc(entry.subject.id) + '/practice">' +
-        '<span class="vault-mini-icon"><i data-lucide="' + esc(entry.subject.icon) + '"></i></span>' +
-        "<span><span class=\"vault-mini-title\">" + esc(entry.subject.title) + "</span>" +
-        '<span class="vault-mini-sub">' + entry.subject.study.length + " cards · " + entry.subject.tips.length + " tips</span></span></a>"
-      );
-    }).join("");
-
-    const categorySections = window.STUDY_DATA.categories.map(function (category, categoryIndex) {
-      return (
-        '<section class="dashboard-section accent-' + esc(category.accent) + '">' +
-        '<div class="section-head">' +
-        '<div class="section-heading">' +
-        '<span class="section-index">' + pad2(categoryIndex + 1) + "</span>" +
-        "<h2>" + esc(category.title) + "</h2>" +
-        "<p>" + esc(category.tagline) + "</p></div>" +
-        '<span class="section-count">' + category.subjects.length + " subjects</span>" +
-        "</div>" +
-        '<div class="subject-grid">' +
-        category.subjects.map(function (subject) {
-          return subjectCardHTML(SUBJECT_MAP.get(subject.id));
-        }).join("") +
-        "</div></section>"
+        '<a class="category-row accent-' + esc(category.accent) + '" href="#/browse/' + esc(category.id) + '">' +
+        '<span class="category-row-icon"><i data-lucide="' + esc(category.icon) + '"></i></span>' +
+        '<span class="category-row-body"><strong>' + esc(category.title) + '</strong><small>' + esc(category.tagline) + '</small></span>' +
+        '<span class="category-row-count">' + category.subjects.length + ' subjects</span>' +
+        '<i data-lucide="chevron-right" class="category-row-arrow"></i></a>'
       );
     }).join("");
 
     view.innerHTML =
-      '<div class="view-inner">' +
-      '<section class="hero">' +
-      '<div class="hero-meta"><span>Questionaire</span><span>Study annual</span><span>No. 01</span></div>' +
-      '<div class="hero-body">' +
-      '<div class="hero-copy">' +
-      '<span class="eyebrow">' +
-      esc(new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })) +
-      " · Vol. 1</span>" +
-      "<h1>" + esc(greeting()) + ".</h1>" +
-      "<p>" + SUBJECTS.length + " subjects in this issue. Read the brief, drill the question bank, then sit a timed paper. Nothing leaves this browser.</p>" +
-      '<div class="hero-actions">' +
-      '<a class="btn btn-primary" href="#/subject/' + esc(nextEntry.subject.id) + '/practice"><span>Begin with ' + esc(nextEntry.subject.title) + '</span><i data-lucide="arrow-right"></i></a>' +
-      '<a class="btn btn-ghost" href="#/review">Review queue <span class="btn-count">' + reviewCount() + "</span></a>" +
-      "</div></div>" +
-      '<aside class="hero-side">' +
-      '<div class="mastery-figure"><strong class="mastery-number">' + solvedPct + '%</strong><span class="mastery-caption">of the question bank solved</span></div>' +
-      '<div class="hero-side-meta">' +
-      '<div class="hero-side-row"><span>Level ' + stats.level + "</span><strong>" + esc(stats.rank) + "</strong></div>" +
-      '<div class="hero-side-row"><span>Experience</span><strong>' + stats.xp + " XP</strong></div>" +
-      '<div class="hero-side-row"><span>Solved</span><strong>' + stats.solved + "/" + totalQuestions + "</strong></div>" +
-      '<div class="hero-side-row"><span>Best streak</span><strong>' + stats.bestStreak + " " + plural(stats.bestStreak, "day", "days") + "</strong></div>" +
-      "</div>" +
+      '<div class="view-inner dashboard-home">' +
+      '<section class="home-intro">' +
+      '<div class="home-intro-copy">' +
+      '<span class="eyebrow">Study annual · Vol. 1 · 2026-27</span>' +
+      '<h1>What are we studying today?</h1>' +
+      '<p>Find your course, answer a few questions, and get an explanation you can actually use. No account, no noise — just the work.</p>' +
+      '<button class="home-search" type="button" data-action="focus-search">' +
+      '<i data-lucide="search"></i><span>Search subjects, topics or questions</span><kbd aria-hidden="true">/</kbd></button>' +
+      '<div class="home-actions">' +
+      '<a class="btn btn-primary" href="#/browse"><span>Browse all ' + SUBJECTS.length + ' subjects</span><i data-lucide="arrow-right"></i></a>' +
+      '<a class="btn btn-ghost" href="#/browse/ap-courses"><span>AP courses</span><span class="btn-count">' + (apCategory ? apCategory.subjects.length : 0) + '</span></a>' +
+      '</div></div>' +
+      '<aside class="home-record">' +
+      '<div class="record-head"><span>Your record</span><span>Level ' + stats.level + ' · ' + esc(stats.rank) + '</span></div>' +
+      '<div class="record-grid">' +
+      '<div class="record-stat"><strong>' + stats.solved + '</strong><span>of ' + totalQuestions + ' solved</span></div>' +
+      '<div class="record-stat"><strong>' + stats.accuracy + '%</strong><span>accuracy</span></div>' +
+      '<div class="record-stat"><strong>' + stats.streak + '</strong><span>' + plural(stats.streak, "day", "days") + ' streak</span></div>' +
+      '</div>' +
+      '<div class="record-xp"><span>' + stats.xp + ' XP</span><span>' + stats.xpToNext + ' XP to next level</span></div>' +
       '<div class="progress"><div class="progress-bar" style="width:' + stats.levelProgress + '%"></div></div>' +
-      '<p class="hero-side-note">Level progress · ' + stats.xpToNext + " XP to next</p>" +
-      "</aside></div></section>" +
+      '<a class="record-review" href="#/review"><span>Review queue</span><b>' + reviewCount() + '</b><i data-lucide="arrow-right"></i></a>' +
+      '</aside></section>' +
 
-      '<section class="stats-grid" aria-label="Your statistics">' +
-      statCard({
-        label: "Questions solved",
-        icon: "target",
-        accent: "accent-indigo",
-        value: stats.solved,
-        unit: "of " + totalQuestions,
-        foot: stats.attempts + " total " + plural(stats.attempts, "attempt", "attempts")
-      }) +
-      statCard({
-        label: "Accuracy",
-        icon: "crosshair",
-        accent: "accent-teal",
-        value: stats.accuracy + "%",
-        foot: stats.correct + " correct of " + stats.attempts
-      }) +
-      statCard({
-        label: "Daily streak",
-        icon: "flame",
-        accent: "accent-amber",
-        value: stats.streak,
-        unit: plural(stats.streak, "day", "days"),
-        foot: stats.streak > 0 ? "Best: " + stats.bestStreak + " " + plural(stats.bestStreak, "day", "days") : "Answer a question to start"
-      }) +
-      statCard({
-        label: "Level " + stats.level,
-        icon: "award",
-        accent: "accent-indigo",
-        value: stats.xp,
-        unit: "XP",
-        foot: esc(stats.rank) + " · " + stats.xpToNext + " XP to next"
-      }) +
-      "</section>" +
+      '<section class="home-section">' +
+      '<div class="home-section-head"><div><span class="eyebrow">Your next session</span><h2>' + continueLabel + '</h2></div>' +
+      '<a class="text-link" href="#/browse">All subjects<i data-lucide="arrow-right"></i></a></div>' +
+      '<div class="course-grid course-grid-3">' + starts.map(compactSubjectCard).join("") + '</div>' +
+      '</section>' +
 
-      '<div class="dash-bento">' +
-      '<section class="dash-panel card">' +
-      '<div class="dash-panel-head"><h3><i data-lucide="history"></i>Pick up where you left off</h3><span>progress</span></div>' +
-      '<div class="continue-list">' + continueHTML + "</div></section>" +
-      '<section class="dash-panel card">' +
-      '<div class="dash-panel-head"><h3><i data-lucide="archive"></i>Universal vault</h3><span>non-syllabus</span></div>' +
-      '<div class="vault-mini">' + vaultHTML + "</div></section>" +
-      "</div>" +
-      categorySections +
+      '<section class="home-section home-ap">' +
+      '<div class="home-section-head"><div><span class="eyebrow">Advanced Placement</span><h2>All 42 AP courses</h2><p>Exam-focused practice for every current College Board course, from Art History to Cybersecurity.</p></div>' +
+      '<a class="btn btn-primary" href="#/browse/ap-courses"><span>Open AP shelf</span><i data-lucide="arrow-right"></i></a></div>' +
+      '<div class="course-grid course-grid-3">' + featuredAp.map(function (subject) {
+        return compactSubjectCard(SUBJECT_MAP.get(subject.id));
+      }).join("") + '</div>' +
+      '</section>' +
+
+      '<section class="home-section">' +
+      '<div class="home-section-head"><div><span class="eyebrow">The rest of the annual</span><h2>Browse by section</h2></div></div>' +
+      '<div class="category-list">' + categoryRows + '</div>' +
+      '</section>' +
+      '</div>';
+  }
+
+  /* --------------------------------------------------------------------------
+     Browse catalogue
+     -------------------------------------------------------------------------- */
+
+  function compactSubjectCard(entry) {
+    const subject = entry.subject;
+    const stats = subjectStats(subject);
+    const kicker = subject.trackLabel || entry.category.title;
+    return (
+      '<a class="course-card ' + accentClass(entry) + '" href="#/subject/' + esc(subject.id) + '/practice">' +
+      '<span class="course-card-top">' +
+      '<span class="course-card-icon"><i data-lucide="' + esc(subject.icon) + '"></i></span>' +
+      '<span class="course-card-kicker">' + esc(kicker) + "</span>" +
+      '<span class="course-card-arrow"><i data-lucide="arrow-up-right"></i></span>' +
+      "</span>" +
+      '<span class="course-card-title">' + esc(subject.title) + "</span>" +
+      '<span class="course-card-blurb">' + esc(subject.blurb) + "</span>" +
+      '<span class="course-card-meta">' +
+      "<span>" + subject.questions.length + " questions</span>" +
+      "<span>" + subject.study.length + " study cards</span>" +
+      "<span>" + stats.solved + "/" + stats.total + " solved</span>" +
+      "</span>" +
+      '<span class="course-card-progress"><span class="progress"><span class="progress-bar" style="width:' + stats.pct + '%"></span></span></span>' +
+      "</a>"
+    );
+  }
+
+  function renderBrowse() {
+    const categories = window.STUDY_DATA.categories;
+    const categoryId = state.route.category || "all";
+    const track = state.route.track || "all";
+    const activeCategory = categories.find(function (category) { return category.id === categoryId; });
+    const tracks = [
+      { id: "all", label: "All AP" },
+      { id: "arts", label: "Arts" },
+      { id: "english", label: "English" },
+      { id: "history", label: "History & social sciences" },
+      { id: "math-cs", label: "Math & computer science" },
+      { id: "sciences", label: "Sciences" },
+      { id: "languages", label: "World languages" },
+      { id: "capstone", label: "Capstone" },
+      { id: "career", label: "Career Kickstart" }
+    ];
+
+    const entries = SUBJECTS.filter(function (entry) {
+      if (categoryId !== "all" && entry.category.id !== categoryId) return false;
+      if (track !== "all" && entry.subject.track !== track) return false;
+      return true;
+    });
+
+    const categoryChips = [{ id: "all", title: "All subjects" }].concat(categories).map(function (category) {
+      const count = category.id === "all" ? SUBJECTS.length : category.subjects.length;
+      return (
+        '<a class="filter-chip ' + (categoryId === category.id ? "active" : "") + '" href="#/browse/' + (category.id === "all" ? "" : esc(category.id)) + '">' +
+        esc(category.title) + '<span>' + count + "</span></a>"
+      );
+    }).join("");
+
+    const trackChips = categoryId === "ap-courses"
+      ? '<div class="filter-bar filter-bar-sub" aria-label="Filter AP courses by subject area">' + tracks.map(function (item) {
+          return '<a class="filter-chip ' + (track === item.id ? "active" : "") + '" href="#/browse/ap-courses' + (item.id === "all" ? "" : "/" + item.id) + '">' + esc(item.label) + "</a>";
+        }).join("") + "</div>"
+      : "";
+
+    view.innerHTML =
+      '<div class="view-inner browse-page">' +
+      '<a class="back-link" href="#/dashboard"><i data-lucide="arrow-left"></i>Dashboard</a>' +
+      '<header class="browse-head">' +
+      '<span class="eyebrow">Subject index · ' + SUBJECTS.length + ' subjects</span>' +
+      "<h1>" + esc(activeCategory ? activeCategory.title : "Browse all subjects") + "</h1>" +
+      "<p>" + esc(activeCategory ? activeCategory.tagline : "Every AP course, language, science and study vault in one place. Pick a card to start practising.") + "</p>" +
+      "</header>" +
+      '<div class="filter-bar" aria-label="Filter by section">' + categoryChips + "</div>" +
+      trackChips +
+      '<div class="browse-toolbar"><strong>' + entries.length + " " + plural(entries.length, "subject", "subjects") + "</strong><span>Select a card to open its question bank</span></div>" +
+      (entries.length
+        ? '<div class="course-grid">' + entries.map(compactSubjectCard).join("") + "</div>"
+        : emptyState("filter", "No courses here yet", "Try another section or clear the subject-area filter.", "")) +
       "</div>";
   }
 
@@ -804,7 +862,11 @@
       return info && info.subject.id === subject.id;
     }).length;
 
-    const tabs = TABS.map(function (tab) {
+    const visibleTabs = TABS.filter(function (tab) {
+      return tab.id !== "videos" || subject.videos.length > 0;
+    });
+
+    const tabs = visibleTabs.map(function (tab) {
       let count = 0;
       if (tab.id === "practice") count = subject.questions.length;
       if (tab.id === "study") count = subject.study.length;
@@ -821,23 +883,30 @@
     let panel = "";
     if (state.route.tab === "study") panel = studyTabHTML(subject);
     else if (state.route.tab === "tips") panel = tipsTabHTML(subject);
-    else if (state.route.tab === "videos") panel = videosTabHTML(subject);
+    else if (state.route.tab === "videos" && subject.videos.length) panel = videosTabHTML(subject);
     else panel = practiceTabHTML(entry);
 
     view.innerHTML =
       '<div class="view-inner">' +
       '<nav class="crumbs" aria-label="Breadcrumb">' +
       '<a href="#/dashboard">Dashboard</a><i data-lucide="chevron-right"></i>' +
-      "<span>" + esc(entry.category.title) + "</span></nav>" +
+      '<a href="#/browse/' + esc(entry.category.id) + '">' + esc(entry.category.title) + '</a><i data-lucide="chevron-right"></i>' +
+      "<span>" + esc(subject.title) + "</span></nav>" +
       '<header class="subject-header card ' + accentClass(entry) + '">' +
       '<span class="subject-header-icon"><i data-lucide="' + esc(subject.icon) + '"></i></span>' +
       '<div class="subject-header-body">' +
-      '<span class="badge ' + badgeClass(subject.level) + '">' + esc(subject.level) + "</span>" +
+      '<div class="subject-badges"><span class="badge ' + badgeClass(subject.level) + '">' + esc(subject.level) + "</span>" +
+      (subject.trackLabel ? '<span class="badge badge-accent">' + esc(subject.trackLabel) + "</span>" : "") + "</div>" +
       "<h1>" + esc(subject.title) + "</h1>" +
       "<p>" + esc(subject.blurb) + "</p>" +
-      '<div class="subject-header-meta">' + subject.tags.map(function (tag) {
+      (subject.examFormat ? '<p class="subject-exam-format"><i data-lucide="calendar-check"></i>' + esc(subject.examFormat) + "</p>" : "") +
+      '<div class="subject-header-meta">' + subject.tags.slice(0, 4).map(function (tag) {
         return '<span class="tag">' + esc(tag) + "</span>";
-      }).join("") + "</div></div>" +
+      }).join("") + "</div>" +
+      '<div class="subject-header-actions">' +
+      '<a class="btn btn-primary" href="#/subject/' + esc(subject.id) + '/practice"><i data-lucide="play"></i>Practice</a>' +
+      '<a class="btn btn-ghost" href="#/subject/' + esc(subject.id) + '/study"><i data-lucide="book-open"></i>Study cards</a>' +
+      "</div></div>" +
       '<div class="subject-header-side">' +
       '<div class="shs-row"><span>Bank</span><strong>' + subject.questions.length + "</strong></div>" +
       '<div class="shs-row"><span>Solved</span><strong>' + stats.solved + "/" + stats.total + "</strong></div>" +
@@ -1583,6 +1652,12 @@
     const questionId = trigger.getAttribute("data-qid");
     const subjectId = trigger.getAttribute("data-subject");
 
+    if (action === "focus-search") {
+      searchInput.focus();
+      searchInput.select();
+      return;
+    }
+
     if (action === "answer" && questionId) {
       const info = QUESTION_MAP.get(questionId);
       if (!info) return;
@@ -1774,6 +1849,12 @@
   });
 
   document.addEventListener("click", function (event) {
+    const focusSearch = event.target.closest('[data-action="focus-search"]');
+    if (focusSearch) {
+      searchInput.focus();
+      searchInput.select();
+      return;
+    }
     if (!searchWrap.contains(event.target)) closeSearch(false);
     const themeButton = event.target.closest("[data-theme-set]");
     if (themeButton) applyTheme(themeButton.getAttribute("data-theme-set"), true);
