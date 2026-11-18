@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#14120e" id="theme-color" />
   <meta
     name="description"
-    content="Questionaire is a free, static study annual with question banks, cheat sheets and exam practice for every AP course, plus maths, sciences, humanities and languages."
+    content="Questionaire is a free study annual with every AP course, SAT, ACT, PSAT, GED and GRE practice, plus maths, sciences, humanities and languages."
   />
 
   <!-- Set the theme before first paint so the page never flashes the wrong palette. -->
@@ -66,10 +66,13 @@
   <!-- Icons -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
 
-  <link rel="stylesheet" href="styles.css?v=1.5.0" />
+  <link rel="stylesheet" href="styles.css?v=1.6.0" />
   <script src="database.js?v=1.5.1" defer></script>
   <script src="ap-courses.js?v=1.5.0" defer></script>
-  <script src="app.js?v=1.5.1" defer></script>
+  <script src="exam-prep.js?v=1.0.0" defer></script>
+  <script src="firebase-config.js?v=1.0.0"></script>
+  <script src="app.js?v=1.6.0" defer></script>
+  <script type="module" src="firebase-sync.js?v=1.0.0"></script>
 </head>
 
 <body>
@@ -110,8 +113,12 @@
             <span class="sidebar-index">03</span>
             <span>AP courses</span>
           </a>
-          <a class="sidebar-link" href="#/review" data-nav="review">
+          <a class="sidebar-link" href="#/browse/exam-prep">
             <span class="sidebar-index">04</span>
+            <span>Exam prep</span>
+          </a>
+          <a class="sidebar-link" href="#/review" data-nav="review">
+            <span class="sidebar-index">05</span>
             <span>Review queue</span>
             <span class="sidebar-count" id="saved-count">0</span>
           </a>
@@ -122,12 +129,13 @@
       </div>
 
       <div class="sidebar-foot">
+        <div class="account-panel" id="account-panel"></div>
         <div class="sidebar-level" id="sidebar-level"></div>
         <a class="sidebar-link sidebar-settings" href="#/settings" data-nav="settings">
-          <span class="sidebar-index">05</span>
+          <span class="sidebar-index">06</span>
           <span>Settings &amp; progress</span>
         </a>
-        <p class="sidebar-note">Local record. No account, no sync.</p>
+        <p class="sidebar-note" id="sidebar-note">Guest record. Optional Google sync.</p>
       </div>
     </aside>
 
@@ -182,7 +190,7 @@
       <main id="view" class="view" tabindex="-1"></main>
 
       <footer class="site-footer">
-        <p><strong>Questionaire</strong> — a printed study annual for the browser. No account, no tracker; progress stays on this device.</p>
+        <p><strong>Questionaire</strong> — a printed study annual for the browser. Guest-first; optional Google sync keeps your record across devices.</p>
         <p class="site-footer-meta" id="footer-meta">Vol. 1 · Study annual · Set in Instrument Serif &amp; IBM Plex</p>
       </footer>
     </div>

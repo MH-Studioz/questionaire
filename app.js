@@ -140,6 +140,13 @@
   let searchDebounce = null;
   let toastTimer = null;
 
+  let cloud = null;
+  let cloudState = { configured: false, status: "unconfigured", user: null, error: null };
+  let cloudUid = null;
+  let cloudHydrating = false;
+  let cloudSaveTimer = null;
+  let focusQid = null;
+
   /* --------------------------------------------------------------------------
      Progress
      -------------------------------------------------------------------------- */
@@ -158,6 +165,63 @@
   }
 
   let progress = defaultProgress();
+
+  function mergeProgress(local, remote) {
+    const left = Object.assign(defaultProgress(), local && typeof local === "object" ? local : {});
+    const right = Object.assign(defaultProgress(), remote && typeof remote === "object" ? remote : {});
+    const answered = {};
+    const ids = new Set(Object.keys(left.answered || {}).concat(Object.keys(right.answered || {})));
+    ids.forEach(function (id) {
+      if (!QUESTION_MAP.has(id)) return;
+      const a = left.answered[id] || {};
+      const b = right.answered[id] || {};
+      const firstCorrect = [a.firstCorrect, b.firstCorrect].filter(Boolean).sort()[0] || null;
+      answered[id] = {
+        attempts: Math.max(Number(a.attempts) || 0, Number(b.attempts) || 0),
+        correct: Math.max(Number(a.correct) || 0, Number(b.correct) || 0),
+        firstCorrect: firstCorrect,
+        last: [a.last, b.last].filter(Boolean).sort().pop() || null
+      };
+    });
+
+    const bookmarks = Array.from(new Set((left.bookmarks || []).concat(right.bookmarks || []))).filter(function (id) {
+      return QUESTION_MAP.has(id);
+    });
+    const mistakes = Array.from(new Set((left.mistakes || []).concat(right.mistakes || []))).filter(function (id) {
+      return QUESTION_MAP.has(id);
+    });
+    const lastStudyDate = [left.lastStudyDate, right.lastStudyDate].filter(Boolean).sort().pop() || null;
+
+    return {
+      version: 1,
+      answered: answered,
+      xp: Math.max(Number(left.xp) || 0, Number(right.xp) || 0),
+      streak: Math.max(Number(left.streak) || 0, Number(right.streak) || 0),
+      bestStreak: Math.max(Number(left.bestStreak) || 0, Number(right.bestStreak) || 0),
+      lastStudyDate: lastStudyDate,
+      bookmarks: bookmarks,
+      mistakes: mistakes
+    };
+  }
+
+  function persistLocal() {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+    } catch (error) {
+      /* Progress remains in memory if storage is unavailable. */
+    }
+  }
+
+  function scheduleCloudSave() {
+    if (!cloud || !cloudState.user || cloudHydrating) return;
+    window.clearTimeout(cloudSaveTimer);
+    cloudSaveTimer = window.setTimeout(function () {
+      if (!cloud || !cloudState.user || cloudHydrating) return;
+      cloud.saveProgress(progress).catch(function () {
+        /* The local record is still authoritative; the next answer retries. */
+      });
+    }, 700);
+  }
 
   function loadProgress() {
     let stored = null;
@@ -180,11 +244,8 @@
   }
 
   function saveProgress() {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
-    } catch (error) {
-      /* Progress remains in memory if storage is unavailable. */
-    }
+    persistLocal();
+    scheduleCloudSave();
   }
 
   function dateKey(date) {
@@ -271,7 +332,9 @@
     const record = progress.answered[questionId] || { attempts: 0, correct: 0, last: null };
     record.attempts = (Number(record.attempts) || 0) + 1;
     record.correct = (Number(record.correct) || 0) + (isCorrect ? 1 : 0);
-    record.last = new Date().toISOString();
+    const now = new Date().toISOString();
+    record.last = now;
+    if (isCorrect && !record.firstCorrect) record.firstCorrect = now;
     progress.answered[questionId] = record;
     progress.xp = (progress.xp || 0) + (isCorrect ? XP_PER_CORRECT : XP_PER_ATTEMPT);
     if (!isCorrect && progress.mistakes.indexOf(questionId) < 0) {
@@ -401,8 +464,9 @@
 
   function getFilters(subjectId) {
     if (!state.filters[subjectId]) {
-      state.filters[subjectId] = { difficulty: "All", mode: "practice" };
+      state.filters[subjectId] = { difficulty: "All", mode: "practice", limit: 20 };
     }
+    if (!Number(state.filters[subjectId].limit)) state.filters[subjectId].limit = 20;
     return state.filters[subjectId];
   }
 
@@ -428,12 +492,149 @@
      Chrome and sidebar
      -------------------------------------------------------------------------- */
 
+  function accountCardHTML() {
+    const user = cloudState.user;
+    const configured = Boolean(cloudState.configured);
+    const busy = cloudState.operation === "google" || cloudState.operation === "anonymous" || cloudState.status === "loading";
+
+    if (!configured) {
+      return (
+        '<div class="account-summary">' +
+        '<span class="account-avatar account-avatar-guest">G</span>' +
+        '<div class="account-copy"><strong>Guest record</strong><small>Cloud sync is not configured yet.</small></div>' +
+        "</div>" +
+        '<div class="account-actions"><a class="account-link" href="#/settings">Setup guide<i data-lucide="arrow-right"></i></a></div>'
+      );
+    }
+
+    if (cloudState.status === "error") {
+      return (
+        '<div class="account-summary">' +
+        '<span class="account-avatar account-avatar-error">!</span>' +
+        '<div class="account-copy"><strong>Sync needs attention</strong><small>' + esc(cloudState.error || "Cloud sync could not connect.") + "</small></div>" +
+        "</div>" +
+        '<div class="account-actions"><button type="button" class="account-btn" data-action="google-signin"' + (busy ? " disabled" : "") + '><i data-lucide="log-in"></i>Try Google again</button></div>'
+      );
+    }
+
+    if (cloudState.status === "loading" || cloudState.status === "signing-in") {
+      return (
+        '<div class="account-summary">' +
+        '<span class="account-avatar">…</span>' +
+        '<div class="account-copy"><strong>' + (busy ? "Connecting…" : "Opening cloud record…") + '</strong><small>Local progress is safe.</small></div>' +
+        "</div>"
+      );
+    }
+
+    if (user && !user.isAnonymous) {
+      const name = user.displayName || user.email || "Google account";
+      return (
+        '<div class="account-summary">' +
+        '<span class="account-avatar">' + esc(name.charAt(0).toUpperCase()) + "</span>" +
+        '<div class="account-copy"><strong>' + esc(name) + '</strong><small>' + esc(user.email || "Signed in with Google") + "</small></div>" +
+        "</div>" +
+        '<div class="account-actions"><button type="button" class="account-btn account-btn-quiet" data-action="cloud-signout"><i data-lucide="log-out"></i>Sign out</button></div>' +
+        '<p class="account-note">Progress is mirrored to your private Firestore record.</p>'
+      );
+    }
+
+    if (user && user.isAnonymous) {
+      return (
+        '<div class="account-summary">' +
+        '<span class="account-avatar account-avatar-guest">G</span>' +
+        '<div class="account-copy"><strong>Guest cloud record</strong><small>Anonymous account · sync is ready.</small></div>' +
+        "</div>" +
+        '<div class="account-actions"><button type="button" class="account-btn" data-action="google-signin"' + (busy ? " disabled" : "") + '><i data-lucide="chrome"></i>Continue with Google</button></div>' +
+        '<p class="account-note">Linking keeps this record instead of starting over.</p>'
+      );
+    }
+
+    return (
+      '<div class="account-summary">' +
+      '<span class="account-avatar account-avatar-guest">G</span>' +
+      '<div class="account-copy"><strong>Sync across devices</strong><small>Guest progress stays local until you sign in.</small></div>' +
+      "</div>" +
+      '<div class="account-actions"><button type="button" class="account-btn" data-action="google-signin"' + (busy ? " disabled" : "") + '><i data-lucide="chrome"></i>Continue with Google</button></div>'
+    );
+  }
+
+  function updateAccountUI() {
+    const panel = document.getElementById("account-panel");
+    if (panel) panel.innerHTML = accountCardHTML();
+    const note = document.getElementById("sidebar-note");
+    if (note) {
+      note.textContent = !cloudState.configured
+        ? "Local record. No account, no sync."
+        : cloudState.user && !cloudState.user.isAnonymous
+        ? "Synced to your Google account."
+        : "Guest by default. Google sync is optional.";
+    }
+  }
+
+  async function hydrateCloud(user) {
+    if (!cloud || !user || cloudHydrating) return;
+    cloudHydrating = true;
+    window.clearTimeout(cloudSaveTimer);
+    try {
+      const remote = await cloud.loadProgress();
+      if (remote) {
+        progress = mergeProgress(progress, remote);
+        normalizeStreak();
+        persistLocal();
+      }
+      cloudUid = user.uid;
+      await cloud.saveProgress(progress);
+      if (state.routeKey) paint();
+      if (!user.isAnonymous) toast("Google sign-in complete — progress merged.");
+    } catch (error) {
+      toast("Cloud sync is unavailable. Local progress is safe.", "is-warn");
+    } finally {
+      cloudHydrating = false;
+    }
+  }
+
+  function handleCloudState(snapshot) {
+    cloudState = snapshot || { configured: false, status: "unconfigured", user: null, error: null };
+    updateAccountUI();
+    if (state.routeKey && state.route.name === "settings") paint();
+    if (cloudState.status === "signed-in" && cloudState.user && cloudState.user.uid !== cloudUid) {
+      hydrateCloud(cloudState.user);
+    }
+  }
+
+  function attachCloud(api) {
+    if (!api || cloud === api) return;
+    cloud = api;
+    if (typeof api.onChange === "function") {
+      api.onChange(handleCloudState);
+    } else {
+      handleCloudState(api.state || cloudState);
+    }
+  }
+
+  function runCloudAction(action) {
+    if (!cloud || !cloud.configured) {
+      toast("Add your Firebase web config before signing in.", "is-warn");
+      return;
+    }
+    if (action === "google-signin") {
+      cloud.signInGoogle().catch(function () {
+        /* The cloud state carries the friendly error. */
+      });
+    } else if (action === "cloud-signout") {
+      cloud.signOut().catch(function () {
+        /* The cloud state carries the friendly error. */
+      });
+    }
+  }
+
   function updateChrome() {
     const stats = getStats();
     setText("stat-streak", stats.streak);
     setText("stat-xp", stats.xp);
     setText("stat-level", stats.level);
     setText("saved-count", reviewCount());
+    updateAccountUI();
 
     const panel = document.getElementById("sidebar-level");
     const footerMeta = document.getElementById("footer-meta");
@@ -620,6 +821,7 @@
     const selector = pendingTarget;
     pendingTarget = null;
     const element = view.querySelector(selector);
+    focusQid = null;
     if (!element) return;
     element.classList.add("is-target");
     element.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -708,7 +910,11 @@
     const categories = window.STUDY_DATA.categories;
     const apCategory = categories.find(function (category) { return category.id === "ap-courses"; });
     const featuredAp = apCategory ? apCategory.subjects.slice(0, 6) : [];
-    const otherCategories = categories.filter(function (category) { return category.id !== "ap-courses"; });
+    const examCategory = categories.find(function (category) { return category.id === "exam-prep"; });
+    const featuredExams = examCategory ? examCategory.subjects : [];
+    const otherCategories = categories.filter(function (category) {
+      return category.id !== "ap-courses" && category.id !== "exam-prep";
+    });
     const starts = continueEntries();
     const continueLabel = stats.solved > 0 ? "Pick up where you left off" : "Good places to start";
 
@@ -728,7 +934,7 @@
       '<div class="home-intro-copy">' +
       '<span class="eyebrow">Study annual · Vol. 1 · 2026-27</span>' +
       '<h1>What are we studying today?</h1>' +
-      '<p>Find your course, answer a few questions, and get an explanation you can actually use. No account, no noise — just the work.</p>' +
+      '<p>Find your course, answer a few questions, and get an explanation you can actually use. Guest by default, no noise — just the work.</p>' +
       '<button class="home-search" type="button" data-action="focus-search">' +
       '<i data-lucide="search"></i><span>Search subjects, topics or questions</span><kbd aria-hidden="true">/</kbd></button>' +
       '<div class="home-actions">' +
@@ -760,6 +966,15 @@
         return compactSubjectCard(SUBJECT_MAP.get(subject.id));
       }).join("") + '</div>' +
       '</section>' +
+
+      (featuredExams.length
+        ? '<section class="home-section home-exams">' +
+          '<div class="home-section-head"><div><span class="eyebrow">Test season</span><h2>SAT, ACT and more</h2><p>1,000 practice questions per exam, with a timed section builder and full explanations.</p></div>' +
+          '<a class="btn btn-primary" href="#/browse/exam-prep"><span>Open exam prep</span><i data-lucide="arrow-right"></i></a></div>' +
+          '<div class="course-grid course-grid-3">' + featuredExams.map(function (subject) {
+            return compactSubjectCard(SUBJECT_MAP.get(subject.id));
+          }).join("") + '</div></section>'
+        : "") +
 
       '<section class="home-section">' +
       '<div class="home-section-head"><div><span class="eyebrow">The rest of the annual</span><h2>Browse by section</h2></div></div>' +
@@ -922,6 +1137,16 @@
     const subject = entry.subject;
     const filters = getFilters(subject.id);
     const questions = filteredQuestions(subject, filters.difficulty);
+    let ordered = questions;
+    if (focusQid) {
+      const focused = questions.find(function (question) { return question.id === focusQid; });
+      if (focused) {
+        ordered = [focused].concat(questions.filter(function (question) { return question.id !== focusQid; }));
+      }
+    }
+    const limit = Math.max(20, Number(filters.limit) || 20);
+    const visible = ordered.slice(0, limit);
+    const remaining = Math.max(0, ordered.length - visible.length);
 
     const toolbar =
       '<div class="toolbar card">' +
@@ -950,10 +1175,14 @@
 
     return (
       toolbar +
-      '<p class="practice-note"><i data-lucide="zap"></i>Instant feedback — answer, then reveal the derivation one step at a time.</p>' +
-      '<div class="question-list">' + questions.map(function (question) {
+      '<p class="practice-note"><i data-lucide="zap"></i>Instant feedback — answer, then reveal the derivation one step at a time.' +
+      (ordered.length > 20 ? ' <span class="practice-count">' + visible.length + " of " + ordered.length + " shown</span>" : "") + "</p>" +
+      '<div class="question-list">' + visible.map(function (question) {
         return questionCardHTML(entry, question, {});
-      }).join("") + "</div>"
+      }).join("") + "</div>" +
+      (remaining
+        ? '<div class="practice-more"><button type="button" class="btn btn-ghost" data-action="load-more" data-subject="' + esc(subject.id) + '"><i data-lucide="chevron-down"></i>Load 20 more</button><span>' + remaining + " remaining</span></div>"
+        : "")
     );
   }
 
@@ -1071,21 +1300,28 @@
       if (!questions.length) {
         return emptyState("filter", "No questions at this difficulty", "Switch difficulty to build an exam from this bank.", "");
       }
-      const minutes = Math.ceil((questions.length * SECONDS_PER_QUESTION) / 60);
+      const test = subject.testConfig;
+      const count = test ? Math.min(test.questions || 20, questions.length) : questions.length;
+      const secondsPerQuestion = test ? test.secondsPerQuestion || SECONDS_PER_QUESTION : SECONDS_PER_QUESTION;
+      const minutes = Math.ceil((count * secondsPerQuestion) / 60);
+      const title = test ? test.label : "Timed exam mode";
+      const copy = test
+        ? "A fresh sample from the full bank. No hints or feedback until you submit."
+        : "No hints or feedback until you submit. The clock starts when you do.";
       return (
         '<div class="card exam-panel">' +
         '<div class="exam-intro-head">' +
         '<span class="subject-icon accent-amber"><i data-lucide="timer"></i></span>' +
-        "<div><h2>Timed exam mode</h2>" +
-        "<p>No hints or feedback until you submit. The clock starts when you do.</p></div></div>" +
+        "<div><h2>" + esc(title) + "</h2>" +
+        "<p>" + esc(copy) + "</p></div></div>" +
         '<ul class="settings-list">' +
-        "<li><strong>" + questions.length + "</strong> questions at " + esc(getFilters(subject.id).difficulty) + " difficulty</li>" +
+        "<li><strong>" + count + "</strong> questions at " + esc(getFilters(subject.id).difficulty) + " difficulty</li>" +
         "<li><strong>" + minutes + "</strong> " + plural(minutes, "minute", "minutes") + " on the clock</li>" +
         "<li>Graded at the end with full explanations</li>" +
         "<li>Every answer counts toward XP, accuracy and the mistake bank</li>" +
         "</ul>" +
         '<div class="exam-actions"><button type="button" class="btn btn-teal" data-action="start-exam" data-subject="' + esc(subject.id) + '">' +
-        '<i data-lucide="play"></i>Start exam</button></div></div>'
+        '<i data-lucide="play"></i>Start test</button></div></div>'
       );
     }
 
@@ -1165,16 +1401,29 @@
     );
   }
 
+  function sampleQuestions(items, count) {
+    const copy = items.slice();
+    for (let index = copy.length - 1; index > 0; index -= 1) {
+      const swap = Math.floor(Math.random() * (index + 1));
+      const value = copy[index];
+      copy[index] = copy[swap];
+      copy[swap] = value;
+    }
+    return copy.slice(0, count);
+  }
+
   function startExam(subjectId) {
     const entry = SUBJECT_MAP.get(subjectId);
     if (!entry) return;
-    const questions = filteredQuestions(entry.subject, getFilters(subjectId).difficulty);
-    if (!questions.length) {
+    const pool = filteredQuestions(entry.subject, getFilters(subjectId).difficulty);
+    if (!pool.length) {
       toast("No questions at this difficulty.", "is-warn");
       return;
     }
+    const test = entry.subject.testConfig;
+    const questions = test ? sampleQuestions(pool, Math.min(test.questions || 20, pool.length)) : pool;
     stopExamTimer();
-    const totalSeconds = questions.length * SECONDS_PER_QUESTION;
+    const totalSeconds = questions.length * (test ? test.secondsPerQuestion || SECONDS_PER_QUESTION : SECONDS_PER_QUESTION);
     exam = {
       subjectId: subjectId,
       questions: questions,
@@ -1405,10 +1654,17 @@
       '<div class="view-inner">' +
       '<div class="page-head">' +
       "<div><span class=\"eyebrow\">Workspace</span><h1>Settings &amp; progress</h1>" +
-      "<p>No account, no backend. Theme and progress live in this browser's <code>localStorage</code>.</p></div>" +
+      "<p>Guest progress lives in this browser. Sign in with Google to mirror it when cloud sync is configured.</p></div>" +
       '<a class="btn btn-ghost" href="#/dashboard"><i data-lucide="layout-dashboard"></i>Dashboard</a>' +
       "</div>" +
       '<div class="settings-grid">' +
+
+      '<section class="settings-card card">' +
+      "<h2>Account &amp; sync</h2>" +
+      '<p>Anonymous by default. Continue with Google to keep this record across devices.</p>' +
+      '<div class="account-panel">' + accountCardHTML() + "</div>" +
+      (cloudState.configured ? "" : '<p class="account-note">Paste <code>apiKey</code>, <code>authDomain</code>, <code>projectId</code> and <code>appId</code> into <code>firebase-config.js</code>. The owner-only Firestore rules live in <code>firestore.rules</code>.</p>') +
+      "</section>" +
 
       '<section class="settings-card card">' +
       "<h2>Appearance</h2>" +
@@ -1594,8 +1850,11 @@
     stopExamTimer();
     exam = null;
 
-    if (result.qid) pendingTarget = '[data-card="' + result.qid + '"]';
-    else if (result.studyId) pendingTarget = '[data-study="' + result.studyId + '"]';
+    if (result.qid) {
+      focusQid = result.qid;
+      getFilters(result.subjectId).limit = 20;
+      pendingTarget = '[data-card="' + result.qid + '"]';
+    } else if (result.studyId) pendingTarget = '[data-study="' + result.studyId + '"]';
     else if (result.tipId) pendingTarget = '[data-tip="' + result.tipId + '"]';
     else pendingTarget = null;
 
@@ -1658,6 +1917,17 @@
       return;
     }
 
+    if (action === "google-signin" || action === "cloud-signout") {
+      runCloudAction(action);
+      return;
+    }
+
+    if (action === "load-more" && subjectId) {
+      getFilters(subjectId).limit += 20;
+      paint();
+      return;
+    }
+
     if (action === "answer" && questionId) {
       const info = QUESTION_MAP.get(questionId);
       if (!info) return;
@@ -1715,7 +1985,10 @@
     }
 
     if (action === "difficulty" && subjectId) {
-      getFilters(subjectId).difficulty = trigger.getAttribute("data-value");
+      const filters = getFilters(subjectId);
+      filters.difficulty = trigger.getAttribute("data-value");
+      filters.limit = 20;
+      focusQid = null;
       stopExamTimer();
       exam = null;
       paint();
@@ -1727,6 +2000,8 @@
       const mode = trigger.getAttribute("data-mode");
       if (filters.mode === mode) return;
       filters.mode = mode;
+      filters.limit = 20;
+      focusQid = null;
       stopExamTimer();
       exam = null;
       paint();
@@ -1821,6 +2096,15 @@
   sidebarClose.addEventListener("click", closeSidebar);
   sidebarOverlay.addEventListener("click", closeSidebar);
 
+  const accountPanel = document.getElementById("account-panel");
+  if (accountPanel) {
+    accountPanel.addEventListener("click", function (event) {
+      const trigger = event.target.closest("[data-action]");
+      if (!trigger) return;
+      runCloudAction(trigger.getAttribute("data-action"));
+    });
+  }
+
   searchInput.addEventListener("input", onSearchInput);
 
   searchInput.addEventListener("focus", function () {
@@ -1892,6 +2176,10 @@
     buildIndex();
     loadProgress();
     buildSearchIndex();
+    attachCloud(window.QuestionaireCloud);
+    window.addEventListener("questionaire:cloud-ready", function (event) {
+      attachCloud(event.detail);
+    });
     renderSidebar();
     applyTheme(getTheme(), false);
     if (!window.location.hash) {
