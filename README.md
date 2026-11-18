@@ -1,8 +1,10 @@
 # Questionaire
 
-A static study annual for the browser: every current AP course, SAT/ACT/PSAT/GED/GRE practice, plus question banks, cheat sheets, memory notes and video lessons across maths, sciences, humanities and languages. Progress is stored locally by default; optional Google sync mirrors it to a private Firestore record when the public Firebase config is filled in.
+The Ultimate Study Site!
 
-**Live:** https://mh-studioz.github.io/questionaire/
+v0.6 beta
+
+https://mh-studioz.github.io/questionaire/
 
 ## Run locally
 
