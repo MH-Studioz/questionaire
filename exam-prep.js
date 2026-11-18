@@ -1395,6 +1395,18 @@
     };
   });
 
+  window.ExamPrepContent = {
+    SCIENCE: SCIENCE,
+    SOCIAL: SOCIAL,
+    VOCAB: VOCAB,
+    PASSAGES: PASSAGES,
+    MATH_ALL: MATH_ALL,
+    MATH_ALG: MATH_ALG,
+    MATH_ADV: MATH_ADV,
+    MATH_DATA: MATH_DATA,
+    MATH_GEO: MATH_GEO
+  };
+
   const category = {
     id: "exam-prep",
     title: "Exam Prep",

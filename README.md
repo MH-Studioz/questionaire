@@ -34,15 +34,19 @@ git push origin main
 | `database.js` | Categories, subjects, questions, study cards, tips, videos |
 | `ap-courses.js` | All 42 AP course packs and their exam-focused content |
 | `exam-prep.js` | SAT, ACT, PSAT, GED and GRE banks (1,000 questions per exam) |
+| `new-subjects.js` | Sixteen additional Mathematics, Science, Humanities, Language and Study Vault subjects |
+| `subject-banks.js` | Lazy 1,000-question generator that fills every subject bank |
 | `firebase-config.js` | Public Firebase web config (blank until the project exists) |
 | `firebase-sync.js` | Anonymous/Google auth, owner-only Firestore reads and writes |
 | `firestore.rules` | `users/{uid}` owner-only rules |
 
 ## Content
 
-Seven sections: AP Courses, Exam Prep, Mathematics, Sciences, Humanities, Languages and the Universal Study Vault. The catalogue has 75 subjects and 5,179 questions.
+Seven sections: AP Courses, Exam Prep, Mathematics, Sciences, Humanities, Languages and the Universal Study Vault. The catalogue has 91 subjects and a 91,000-question target: 1,000 questions per subject.
 
-The AP shelf covers all 42 courses in the College Board catalogue for 2026-27: the Arts, English, History and Social Sciences, Math and Computer Science, Sciences, World Languages, AP Capstone and the two AP Career Kickstart courses. Each AP course has two exam-style questions, two study cards and two tips. AP Networking is not included because it is a 2026-27 pilot and does not join the catalog until Fall 2027.
+Every subject keeps its curated anchor questions first. The remaining questions are built lazily by `subject-banks.js` when a subject is opened or pulled into the review queue, so the static page does not boot all 91,000 cards at once. Search indexes a 20-question sample per subject. Generated ids use the stable `<subject-id>-g0001` format, which lets progress, bookmarks and mistakes survive before that subject's bank is materialised. The generated items are subject-specific practice drills rather than official exam questions.
+
+The AP shelf covers all 42 courses in the College Board catalogue for 2026-27: the Arts, English, History and Social Sciences, Math and Computer Science, Sciences, World Languages, AP Capstone and the two AP Career Kickstart courses. Each AP course has two curated exam-style questions, two study cards and two tips, and its bank is expanded to 1,000 questions by the shared generator. AP Networking is not included because it is a 2026-27 pilot and does not join the catalog until Fall 2027.
 
 **Exam prep** adds five exam subjects with 1,000 deterministic practice questions each:
 
@@ -56,13 +60,15 @@ The AP shelf covers all 42 courses in the College Board catalogue for 2026-27: t
 
 The banks are generated from seeded item families and are stable across reloads, so progress ids do not change. They are practice drills, not official College Board, ACT, GED or ETS questions. Official full-length tests should still be taken through the testing companies.
 
-Languages includes Spanish, French, German, Portuguese, Hindi, Mandarin Chinese, Japanese, Arabic and English Language, with three questions, three study cards, three tips and two videos each.
+Languages includes Spanish, French, German, Portuguese, Hindi, Mandarin Chinese, Japanese, Arabic, English Language, Korean and Russian, each with curated anchor questions, study cards and tips.
 
-To add a subject, copy a block in `database.js`, give it a unique `id`, and prefix every question id with the subject id. The schema is documented at the top of that file.
+The expansion adds Geometry, Trigonometry, Linear Algebra and Data Science; Anatomy & Physiology, Microbiology and Environmental Science; Philosophy, Psychology, Applied Economics, Sociology and Political Science; Korean and Russian; and Research Methods and Financial Literacy in the Study Vault.
+
+To add a subject, copy a block in `database.js` or `new-subjects.js`, give it a unique `id`, and prefix every question id with the subject id. The schema is documented at the top of `database.js`.
 
 ## Navigation
 
-The home page starts with search, a progress summary, recommended subjects, the AP shelf and the SAT/ACT/PSAT/GED/GRE shelf. **Browse all subjects** opens the full catalogue with section filters; the AP shelf adds subject-area filters. On phones, the bottom bar keeps Home, Browse, AP, Review and Search one tap away. Large exam banks render 20 cards at a time with a **Load 20 more** control, and their Exam tab samples a timed section instead of trying to run all 1,000 questions.
+The home page starts with search, a progress summary, recommended subjects, the AP shelf and the SAT/ACT/PSAT/GED/GRE shelf. **Browse all subjects** opens the full catalogue with section filters; the AP shelf adds subject-area filters. On phones, the bottom bar keeps Home, Browse, AP, Review and Search one tap away. Large subject banks render 20 cards at a time with a **Load 20 more** control, and every Exam tab samples a timed section instead of trying to run all 1,000 questions.
 
 ## Accounts and cloud sync
 
@@ -79,7 +85,7 @@ Guest progress lives in `localStorage` under `questionaire.progress.v1`. The Fir
 **Merge policy**
 
 - Questions: union by question id; keep the highest attempt count and the first correct timestamp.
-- Bookmarks and mistakes: union the id sets, dropping ids that are no longer in the catalogue.
+- Bookmarks and mistakes: union the id sets, dropping ids that are no longer valid; generated `<subject-id>-g0001` ids survive before their lazy bank is loaded.
 - XP: merge with `max(local, cloud)` so replaying a question cannot double-count it.
 - Streak: keep the latest study date and the best streak; the current streak is normalized on load.
 - Theme and last route: local preference wins.

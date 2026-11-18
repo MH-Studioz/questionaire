@@ -74,15 +74,62 @@
         };
         SUBJECTS.push(entry);
         SUBJECT_MAP.set(subject.id, entry);
+        if (window.QuestionaireBanks) window.QuestionaireBanks.sample(subject, 20);
         subject.questions.forEach(function (question) {
-          QUESTION_MAP.set(question.id, {
-            question: question,
-            subject: subject,
-            category: category,
-            entry: entry
-          });
+          registerQuestion(question, entry);
         });
       });
+    });
+  }
+
+  function registerQuestion(question, entry) {
+    QUESTION_MAP.set(question.id, {
+      question: question,
+      subject: entry.subject,
+      category: entry.category,
+      entry: entry
+    });
+  }
+
+  function questionTotal(subject) {
+    return Math.max(Number(subject.questionTarget) || 0, subject.questions.length);
+  }
+
+  function formatCount(value) {
+    return Number(value || 0).toLocaleString("en-US");
+  }
+
+  function isBankQuestionIdForSubject(id, subject) {
+    return String(id).indexOf(subject.id + "-g") === 0;
+  }
+
+  function isKnownQuestionId(id) {
+    if (QUESTION_MAP.has(id)) return true;
+    return SUBJECTS.some(function (entry) {
+      return isBankQuestionIdForSubject(id, entry.subject);
+    });
+  }
+
+  function ensureSubjectBank(entry) {
+    if (!entry) return;
+    const subject = entry.subject;
+    const before = subject.questions.length;
+    if (window.QuestionaireBanks) window.QuestionaireBanks.ensure(subject);
+    for (let index = before; index < subject.questions.length; index += 1) {
+      registerQuestion(subject.questions[index], entry);
+    }
+  }
+
+  function ensureReviewBanks() {
+    const ids = progress.bookmarks.concat(progress.mistakes);
+    if (!ids.length) return;
+    if (window.QuestionaireBanks && typeof window.QuestionaireBanks.ensureForIds === "function") {
+      window.QuestionaireBanks.ensureForIds(ids);
+    }
+    SUBJECTS.forEach(function (entry) {
+      if (ids.some(function (id) { return isBankQuestionIdForSubject(id, entry.subject); })) {
+        ensureSubjectBank(entry);
+      }
     });
   }
 
@@ -172,7 +219,7 @@
     const answered = {};
     const ids = new Set(Object.keys(left.answered || {}).concat(Object.keys(right.answered || {})));
     ids.forEach(function (id) {
-      if (!QUESTION_MAP.has(id)) return;
+      if (!isKnownQuestionId(id)) return;
       const a = left.answered[id] || {};
       const b = right.answered[id] || {};
       const firstCorrect = [a.firstCorrect, b.firstCorrect].filter(Boolean).sort()[0] || null;
@@ -184,12 +231,8 @@
       };
     });
 
-    const bookmarks = Array.from(new Set((left.bookmarks || []).concat(right.bookmarks || []))).filter(function (id) {
-      return QUESTION_MAP.has(id);
-    });
-    const mistakes = Array.from(new Set((left.mistakes || []).concat(right.mistakes || []))).filter(function (id) {
-      return QUESTION_MAP.has(id);
-    });
+    const bookmarks = Array.from(new Set((left.bookmarks || []).concat(right.bookmarks || []))).filter(isKnownQuestionId);
+    const mistakes = Array.from(new Set((left.mistakes || []).concat(right.mistakes || []))).filter(isKnownQuestionId);
     const lastStudyDate = [left.lastStudyDate, right.lastStudyDate].filter(Boolean).sort().pop() || null;
 
     return {
@@ -234,8 +277,8 @@
     if (!merged.answered || typeof merged.answered !== "object") merged.answered = {};
     if (!Array.isArray(merged.bookmarks)) merged.bookmarks = [];
     if (!Array.isArray(merged.mistakes)) merged.mistakes = [];
-    merged.bookmarks = merged.bookmarks.filter(function (id) { return QUESTION_MAP.has(id); });
-    merged.mistakes = merged.mistakes.filter(function (id) { return QUESTION_MAP.has(id); });
+    merged.bookmarks = merged.bookmarks.filter(isKnownQuestionId);
+    merged.mistakes = merged.mistakes.filter(isKnownQuestionId);
     merged.xp = Number(merged.xp) || 0;
     merged.streak = Number(merged.streak) || 0;
     merged.bestStreak = Number(merged.bestStreak) || 0;
@@ -311,14 +354,16 @@
     let solved = 0;
     let attempts = 0;
     let correct = 0;
-    subject.questions.forEach(function (question) {
-      const record = progress.answered[question.id];
+    const loaded = new Set(subject.questions.map(function (question) { return question.id; }));
+    Object.keys(progress.answered || {}).forEach(function (id) {
+      if (!loaded.has(id) && !isBankQuestionIdForSubject(id, subject)) return;
+      const record = progress.answered[id];
       if (!record) return;
       solved += 1;
       attempts += Number(record.attempts) || 0;
       correct += Number(record.correct) || 0;
     });
-    const total = subject.questions.length;
+    const total = questionTotal(subject);
     return {
       solved: solved,
       total: total,
@@ -359,7 +404,12 @@
   }
 
   function reviewCount() {
-    return reviewMap().size;
+    const ids = new Set(progress.bookmarks.concat(progress.mistakes));
+    let count = 0;
+    ids.forEach(function (id) {
+      if (isKnownQuestionId(id)) count += 1;
+    });
+    return count;
   }
 
   function toggleBookmark(questionId) {
@@ -674,7 +724,7 @@
               'href="#/subject/' + esc(subject.id) + '/practice" data-nav-subject="' + esc(subject.id) + '">' +
               '<span class="nav-subject-index">' + pad2(subjectIndex + 1) + "</span>" +
               '<span class="nav-subject-title">' + esc(subject.title) + "</span>" +
-              '<span class="nav-subject-level">' + subject.questions.length + "</span></a>"
+              '<span class="nav-subject-level">' + formatCount(questionTotal(subject)) + "</span></a>"
             );
           })
           .join("");
@@ -842,7 +892,7 @@
   function recommendedEntry() {
     for (let i = 0; i < SUBJECTS.length; i += 1) {
       const entry = SUBJECTS[i];
-      if (entry.subject.questions.some(function (question) { return !progress.answered[question.id]; })) {
+      if (subjectStats(entry.subject).solved < questionTotal(entry.subject)) {
         return entry;
       }
     }
@@ -906,7 +956,9 @@
 
   function renderDashboard() {
     const stats = getStats();
-    const totalQuestions = QUESTION_MAP.size;
+    const totalQuestions = SUBJECTS.reduce(function (sum, entry) {
+      return sum + questionTotal(entry.subject);
+    }, 0);
     const categories = window.STUDY_DATA.categories;
     const apCategory = categories.find(function (category) { return category.id === "ap-courses"; });
     const featuredAp = apCategory ? apCategory.subjects.slice(0, 6) : [];
@@ -944,7 +996,7 @@
       '<aside class="home-record">' +
       '<div class="record-head"><span>Your record</span><span>Level ' + stats.level + ' · ' + esc(stats.rank) + '</span></div>' +
       '<div class="record-grid">' +
-      '<div class="record-stat"><strong>' + stats.solved + '</strong><span>of ' + totalQuestions + ' solved</span></div>' +
+      '<div class="record-stat"><strong>' + formatCount(stats.solved) + '</strong><span>of ' + formatCount(totalQuestions) + ' solved</span></div>' +
       '<div class="record-stat"><strong>' + stats.accuracy + '%</strong><span>accuracy</span></div>' +
       '<div class="record-stat"><strong>' + stats.streak + '</strong><span>' + plural(stats.streak, "day", "days") + ' streak</span></div>' +
       '</div>' +
@@ -1001,7 +1053,7 @@
       '<span class="course-card-title">' + esc(subject.title) + "</span>" +
       '<span class="course-card-blurb">' + esc(subject.blurb) + "</span>" +
       '<span class="course-card-meta">' +
-      "<span>" + subject.questions.length + " questions</span>" +
+      "<span>" + formatCount(questionTotal(subject)) + " questions</span>" +
       "<span>" + subject.study.length + " study cards</span>" +
       "<span>" + stats.solved + "/" + stats.total + " solved</span>" +
       "</span>" +
@@ -1070,6 +1122,7 @@
 
   function renderSubject() {
     const entry = SUBJECT_MAP.get(state.route.subjectId);
+    ensureSubjectBank(entry);
     const subject = entry.subject;
     const stats = subjectStats(subject);
     const bookmarked = progress.bookmarks.filter(function (id) {
@@ -1564,6 +1617,7 @@
      -------------------------------------------------------------------------- */
 
   function renderReview() {
+    ensureReviewBanks();
     const items = reviewMap();
     const filter = state.reviewFilter;
     const visible = Array.from(items.keys()).filter(function (id) {
@@ -1640,6 +1694,9 @@
 
   function renderSettings() {
     const stats = getStats();
+    const totalQuestions = SUBJECTS.reduce(function (sum, entry) {
+      return sum + questionTotal(entry.subject);
+    }, 0);
     const theme = getTheme();
     const themeOption = function (value, label, swatch, description) {
       return (
@@ -1678,7 +1735,7 @@
       '<section class="settings-card card">' +
       "<h2>Your record</h2>" +
       '<p>Accuracy counts every attempt, so retries are included.</p>' +
-      '<div class="settings-row"><span>Questions solved</span><strong>' + stats.solved + " / " + QUESTION_MAP.size + "</strong></div>" +
+      '<div class="settings-row"><span>Questions solved</span><strong>' + formatCount(stats.solved) + " / " + formatCount(totalQuestions) + "</strong></div>" +
       '<div class="settings-row"><span>Total attempts</span><strong>' + stats.attempts + "</strong></div>" +
       '<div class="settings-row"><span>Accuracy</span><strong>' + stats.accuracy + "%</strong></div>" +
       '<div class="settings-row"><span>Level</span><strong>' + stats.level + " · " + esc(stats.rank) + "</strong></div>" +
