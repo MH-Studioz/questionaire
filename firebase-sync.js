@@ -2,12 +2,17 @@
    QUESTIONAIRE — firebase-sync.js
    ----------------------------------------------------------------------------
    Optional cloud layer. The module does nothing until the public config in
-   firebase-config.js is filled in. It signs guests in anonymously, upgrades
-   that anonymous account to Google in place where possible, and stores one
-   owner-only document at users/{uid}.
+   firebase-config.js is filled in.
 
-   The app still treats localStorage as the offline source of truth. This file
-   only mirrors the merged record and never stores a service-account key.
+   Supported accounts:
+     - Email + password (sign in, create account, password reset)
+     - Google popup sign-in
+
+   There is no anonymous/guest Firebase account. One owner-only Firestore
+   document is stored at users/{uid}. localStorage remains the offline cache;
+   the app keeps a separate local record for each cloud UID.
+
+   This file never stores a service-account key or a client secret.
    ========================================================================== */
 
 (function () {
@@ -27,7 +32,6 @@
   let db = null;
   let sdk = null;
   let started = false;
-  let suppressAnonymous = false;
   let operation = null;
   let error = null;
   let user = null;
@@ -42,12 +46,17 @@
 
   function publicUser(value) {
     if (!value) return null;
+    const providers = (value.providerData || [])
+      .map(function (provider) { return provider && provider.providerId; })
+      .filter(Boolean);
     return {
       uid: value.uid,
       isAnonymous: Boolean(value.isAnonymous),
       displayName: value.displayName || "",
       email: value.email || "",
-      photoURL: value.photoURL || ""
+      photoURL: value.photoURL || "",
+      providers: providers,
+      provider: providers[0] || (value.email ? "password" : "")
     };
   }
 
@@ -82,7 +91,7 @@
   function friendlyError(caught) {
     const code = caught && caught.code ? caught.code : "";
     if (code === "auth/operation-not-allowed") {
-      return "This sign-in provider is disabled in Firebase Authentication.";
+      return "This sign-in method is disabled in Firebase Authentication.";
     }
     if (code === "auth/unauthorized-domain") {
       return "This origin is not an authorized Firebase OAuth domain.";
@@ -93,8 +102,38 @@
     if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
       return "Google sign-in was closed before it finished.";
     }
+    if (code === "auth/account-exists-with-different-credential") {
+      return "That email already uses another sign-in method. Use the method you originally chose.";
+    }
     if (code === "auth/credential-already-in-use" || code === "auth/email-already-in-use") {
-      return "That Google account already has a record. Sign-in was used instead of linking.";
+      return "An account already exists for that email. Sign in instead, or reset the password.";
+    }
+    if (code === "auth/invalid-email") {
+      return "Enter a valid email address.";
+    }
+    if (code === "auth/missing-password") {
+      return "Enter your password.";
+    }
+    if (code === "auth/weak-password") {
+      return "Use at least 6 characters for the password.";
+    }
+    if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
+      return "That email and password do not match an account.";
+    }
+    if (code === "auth/user-not-found") {
+      return "No account exists for that email. Create one first.";
+    }
+    if (code === "auth/user-disabled") {
+      return "This account has been disabled in Firebase Authentication.";
+    }
+    if (code === "auth/too-many-requests") {
+      return "Too many attempts. Wait a minute, then try again.";
+    }
+    if (code === "auth/network-request-failed") {
+      return "Firebase could not be reached. Check your connection and try again.";
+    }
+    if (code === "auth/requires-recent-login") {
+      return "Sign in again before changing this account.";
     }
     if (code === "permission-denied") {
       return "Firestore denied the write. Check the owner-only rules and deploy them.";
@@ -102,7 +141,7 @@
     if (code === "unavailable") {
       return "Cloud sync is offline. Your progress is still saved on this device.";
     }
-    return (caught && caught.message) || "Cloud sync could not start.";
+    return (caught && caught.message) || "Cloud sign-in could not start.";
   }
 
   function fail(caught) {
@@ -110,6 +149,7 @@
     state.status = "error";
     operation = null;
     publish();
+    return false;
   }
 
   async function loadSdk() {
@@ -141,81 +181,140 @@
       }
 
       loaded.auth.onAuthStateChanged(auth, async function (nextUser) {
-        if (nextUser) {
-          user = nextUser;
-          error = null;
-          state.status = "signed-in";
-          publish();
+        if (nextUser && nextUser.isAnonymous) {
+          await loaded.auth.signOut(auth);
           return;
         }
-
-        user = null;
-        if (suppressAnonymous) {
-          state.status = "signed-out";
-          publish();
-          return;
-        }
-
-        state.status = "signing-in";
+        user = nextUser || null;
+        error = null;
+        state.status = user ? "signed-in" : "signed-out";
+        operation = null;
         publish();
-        try {
-          operation = "anonymous";
-          publish();
-          await loaded.auth.signInAnonymously(auth);
-        } catch (anonymousError) {
-          fail(anonymousError);
-        } finally {
-          operation = null;
-        }
       });
     } catch (startupError) {
       fail(startupError);
     }
   }
 
-  async function signInGoogle() {
+  async function ensureAuth() {
     if (!CONFIGURED) {
       error = "Add the public Firebase web config before signing in.";
       state.status = "unconfigured";
       publish();
-      return;
+      return false;
     }
-    if (!auth) {
-      await start();
-      if (!auth) return;
-    }
+    if (!auth) await start();
+    return Boolean(auth);
+  }
 
-    suppressAnonymous = false;
-    operation = "google";
+  function startOperation(name) {
+    operation = name;
     error = null;
     state.status = "signing-in";
     publish();
+  }
 
+  async function signInGoogle() {
+    if (!(await ensureAuth())) return false;
+    if (auth.currentUser) return true;
+
+    startOperation("google");
     const provider = new sdk.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: "select_account" });
 
     try {
-      if (auth.currentUser && auth.currentUser.isAnonymous) {
-        try {
-          await sdk.auth.linkWithPopup(auth.currentUser, provider);
-        } catch (linkError) {
-          if (
-            linkError &&
-            (linkError.code === "auth/credential-already-in-use" ||
-              linkError.code === "auth/email-already-in-use")
-          ) {
-            await sdk.auth.signInWithPopup(auth, provider);
-          } else {
-            throw linkError;
-          }
-        }
-      } else if (!auth.currentUser) {
-        await sdk.auth.signInWithPopup(auth, provider);
-      }
-      state.status = "signed-in";
+      await sdk.auth.signInWithPopup(auth, provider);
       error = null;
+      return true;
     } catch (signInError) {
-      fail(signInError);
+      return fail(signInError);
+    } finally {
+      operation = null;
+      publish();
+    }
+  }
+
+  async function signInEmail(email, password) {
+    if (!(await ensureAuth())) return false;
+    const cleanEmail = String(email || "").trim();
+    if (!cleanEmail) {
+      error = "Enter your email address.";
+      state.status = "error";
+      publish();
+      return false;
+    }
+    if (!password) {
+      error = "Enter your password.";
+      state.status = "error";
+      publish();
+      return false;
+    }
+
+    startOperation("email-signin");
+    try {
+      await sdk.auth.signInWithEmailAndPassword(auth, cleanEmail, password);
+      error = null;
+      return true;
+    } catch (signInError) {
+      return fail(signInError);
+    } finally {
+      operation = null;
+      publish();
+    }
+  }
+
+  async function signUpEmail(displayName, email, password) {
+    if (!(await ensureAuth())) return false;
+    const cleanName = String(displayName || "").trim().slice(0, 60);
+    const cleanEmail = String(email || "").trim();
+    if (!cleanEmail) {
+      error = "Enter your email address.";
+      state.status = "error";
+      publish();
+      return false;
+    }
+    if (!password || String(password).length < 6) {
+      error = "Use at least 6 characters for the password.";
+      state.status = "error";
+      publish();
+      return false;
+    }
+
+    startOperation("email-signup");
+    try {
+      const credential = await sdk.auth.createUserWithEmailAndPassword(auth, cleanEmail, password);
+      if (cleanName) {
+        await sdk.auth.updateProfile(credential.user, { displayName: cleanName });
+        user = auth.currentUser;
+      }
+      error = null;
+      return true;
+    } catch (signUpError) {
+      return fail(signUpError);
+    } finally {
+      operation = null;
+      publish();
+    }
+  }
+
+  async function resetPassword(email) {
+    if (!(await ensureAuth())) return false;
+    const cleanEmail = String(email || "").trim();
+    if (!cleanEmail) {
+      error = "Enter the email address for the reset link.";
+      state.status = "error";
+      publish();
+      return false;
+    }
+
+    startOperation("password-reset");
+    try {
+      await sdk.auth.sendPasswordResetEmail(auth, cleanEmail);
+      error = null;
+      state.status = auth.currentUser ? "signed-in" : "signed-out";
+      return true;
+    } catch (resetError) {
+      return fail(resetError);
     } finally {
       operation = null;
       publish();
@@ -223,16 +322,16 @@
   }
 
   async function signOutUser() {
-    if (!auth) return;
-    suppressAnonymous = true;
+    if (!auth) return false;
     operation = "sign-out";
     error = null;
     try {
       await sdk.auth.signOut(auth);
+      user = null;
       state.status = "signed-out";
+      return true;
     } catch (signOutError) {
-      suppressAnonymous = false;
-      fail(signOutError);
+      return fail(signOutError);
     } finally {
       operation = null;
       publish();
@@ -290,6 +389,9 @@
     },
     start: start,
     signInGoogle: signInGoogle,
+    signInEmail: signInEmail,
+    signUpEmail: signUpEmail,
+    resetPassword: resetPassword,
     signOut: signOutUser,
     loadProgress: loadProgress,
     saveProgress: saveProgress

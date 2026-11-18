@@ -190,7 +190,9 @@
 
   let accountStore = { version: 1, activeId: null, accounts: [] };
   let activeAccount = null;
-  let storageKey = STORAGE_KEY;
+  let storageKey = null;
+  let legacyGuestProgress = null;
+  let authRedirect = null;
 
   let cloud = null;
   let cloudState = { configured: false, status: "unconfigured", user: null, error: null };
@@ -243,6 +245,22 @@
     return STORAGE_KEY + ".account." + id;
   }
 
+  function cloudStorageKey(uid) {
+    return STORAGE_KEY + ".cloud." + uid;
+  }
+
+  function cloudIdentity() {
+    return cloudState.user && !cloudState.user.isAnonymous ? cloudState.user : null;
+  }
+
+  function hasIdentity() {
+    return Boolean(cloudIdentity() || activeAccount);
+  }
+
+  function currentAccountKey() {
+    return activeAccount ? accountStorageKey(activeAccount.id) : null;
+  }
+
   function findAccount(id) {
     return accountStore.accounts.find(function (account) { return account.id === id; }) || null;
   }
@@ -262,7 +280,20 @@
     accountStore = readAccountStore();
     activeAccount = accountStore.activeId ? findAccount(accountStore.activeId) : null;
     if (!activeAccount && accountStore.activeId) accountStore.activeId = null;
-    storageKey = activeAccount ? accountStorageKey(activeAccount.id) : STORAGE_KEY;
+    storageKey = currentAccountKey();
+  }
+
+  function takeLegacyGuestProgress() {
+    const legacy = storedProgress(STORAGE_KEY);
+    return legacy && hasProgressData(legacy) ? legacy : null;
+  }
+
+  function clearLegacyGuestProgress() {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      /* The record is already removed from the active identity. */
+    }
   }
 
   function storedProgress(key) {
@@ -309,6 +340,7 @@
   }
 
   function persistLocal() {
+    if (!storageKey) return;
     try {
       window.localStorage.setItem(storageKey, JSON.stringify(progress));
     } catch (error) {
@@ -328,6 +360,10 @@
   }
 
   function loadProgress() {
+    if (!storageKey) {
+      progress = defaultProgress();
+      return;
+    }
     const stored = storedProgress(storageKey);
     const merged = Object.assign(defaultProgress(), stored && typeof stored === "object" ? stored : {});
     if (!merged.answered || typeof merged.answered !== "object") merged.answered = {};
@@ -357,6 +393,10 @@
   }
 
   function createLocalAccount(name, email) {
+    if (cloudIdentity()) {
+      toast("Sign out of your cloud account before creating an offline profile.", "is-warn");
+      return false;
+    }
     const cleanName = String(name || "").trim().slice(0, 40);
     const cleanEmail = String(email || "").trim().slice(0, 120);
     if (!cleanName) {
@@ -371,9 +411,9 @@
       return false;
     }
 
-    const wasGuest = !activeAccount;
+    const guestCopy = !accountStore.accounts.length ? legacyGuestProgress : null;
+    legacyGuestProgress = null;
     persistLocal();
-    const guestCopy = wasGuest && !accountStore.accounts.length ? storedProgress(STORAGE_KEY) : null;
     const account = {
       id: "local-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7),
       name: cleanName,
@@ -388,6 +428,7 @@
         /* The account still starts with the in-memory record. */
       }
     }
+    clearLegacyGuestProgress();
     accountStore.accounts.push(account);
     accountStore.activeId = account.id;
     activeAccount = account;
@@ -402,6 +443,10 @@
   function switchLocalAccount(id) {
     const account = findAccount(id);
     if (!account || (activeAccount && activeAccount.id === id)) return;
+    if (cloudState.user) {
+      toast("Sign out of your cloud account before switching offline profiles.", "is-warn");
+      return;
+    }
     persistLocal();
     activeAccount = account;
     accountStore.activeId = account.id;
@@ -418,11 +463,12 @@
     const name = activeAccount.name;
     activeAccount = null;
     accountStore.activeId = null;
-    storageKey = STORAGE_KEY;
+    storageKey = null;
     persistAccountStore();
     reloadProgress();
-    paint();
-    toast("Signed out of " + name + ". Guest progress restored.");
+    authRedirect = null;
+    go("#/login");
+    toast("Signed out of " + name + ".");
   }
 
   function deleteLocalAccount(id) {
@@ -439,12 +485,60 @@
     }
     if (wasActive) {
       activeAccount = null;
-      storageKey = STORAGE_KEY;
+      storageKey = null;
       reloadProgress();
+      authRedirect = null;
     }
     persistAccountStore();
-    paint();
+    if (wasActive) go("#/login");
+    else paint();
     toast("Local profile deleted.", "is-warn");
+  }
+
+  function resumeAfterAuth() {
+    const target = authRedirect || "#/dashboard";
+    authRedirect = null;
+    if (state.route && state.route.name === "login") go(target);
+  }
+
+  function activateCloudUser(nextUser) {
+    if (!nextUser || nextUser.isAnonymous || cloudUid === nextUser.uid) return;
+    const previousProgress = progress;
+    persistLocal();
+    cloudUid = nextUser.uid;
+    const key = cloudStorageKey(nextUser.uid);
+    const cached = storedProgress(key);
+    let seed = cached;
+    if (hasProgressData(previousProgress)) seed = mergeProgress(cached, previousProgress);
+    if (!seed && legacyGuestProgress) seed = legacyGuestProgress;
+    if (seed && hasProgressData(seed)) {
+      try {
+        window.localStorage.setItem(key, JSON.stringify(seed));
+      } catch (error) {
+        /* The cloud record is still hydrated below. */
+      }
+    }
+    clearLegacyGuestProgress();
+    legacyGuestProgress = null;
+    storageKey = key;
+    reloadProgress();
+    hydrateCloud(nextUser);
+    if (state.route && state.route.name === "login") resumeAfterAuth();
+    else paint();
+  }
+
+  function deactivateCloudUser() {
+    if (!cloudUid) return;
+    persistLocal();
+    cloudUid = null;
+    storageKey = currentAccountKey();
+    reloadProgress();
+    if (activeAccount) {
+      paint();
+    } else {
+      authRedirect = null;
+      go("#/login");
+    }
   }
 
   function dateKey(date) {
@@ -699,15 +793,27 @@
      -------------------------------------------------------------------------- */
 
   function accountCardHTML() {
+    const user = cloudIdentity();
+    if (user) {
+      const name = user.displayName || user.email || "Cloud account";
+      const provider = user.provider === "google.com" ? "Google account" : "Email account";
+      const note = cloudState.status === "error"
+        ? (cloudState.error || "Cloud sync needs attention.")
+        : provider + " · synced";
+      return (
+        '<div class="account-summary">' +
+        '<span class="account-avatar">' + esc(name.charAt(0).toUpperCase()) + "</span>" +
+        '<div class="account-copy"><strong>' + esc(name) + "</strong><small>" + esc(user.email || provider) + "</small></div>" +
+        "</div>" +
+        '<div class="account-actions"><a class="account-btn" href="#/login"><i data-lucide="user-round"></i>Manage profile</a></div>' +
+        '<p class="account-note">' + esc(note) + "</p>"
+      );
+    }
+
     if (activeAccount) {
       const name = activeAccount.name;
       const detail = activeAccount.email || "Device profile";
-      const syncNote =
-        cloudState.user && !cloudState.user.isAnonymous
-          ? "Signed in locally · Google cloud sync is on."
-          : cloudState.configured
-          ? "Signed in locally · Google sync is optional."
-          : "Signed in locally. Cloud sync is not configured.";
+      const syncNote = "Local profile · offline only";
       return (
         '<div class="account-summary">' +
         '<span class="account-avatar">' + esc(name.charAt(0).toUpperCase()) + "</span>" +
@@ -720,11 +826,11 @@
 
     return (
       '<div class="account-summary">' +
-      '<span class="account-avatar account-avatar-guest">G</span>' +
-      '<div class="account-copy"><strong>Guest record</strong><small>Sign in to keep separate profiles on this device.</small></div>' +
+      '<span class="account-avatar account-avatar-guest">!</span>' +
+      '<div class="account-copy"><strong>Sign in required</strong><small>Use a cloud account or an offline profile.</small></div>' +
       "</div>" +
       '<div class="account-actions"><a class="account-btn" href="#/login"><i data-lucide="log-in"></i>Sign in</a></div>' +
-      '<p class="account-note">' + (cloudState.configured ? "Google sign-in is also available." : "Google cloud sync is not configured yet.") + "</p>"
+      '<p class="account-note">' + (cloudState.configured ? "Email/password and Google are available." : "Cloud login needs Firebase; local profiles work now.") + "</p>"
     );
   }
 
@@ -733,9 +839,12 @@
     if (panel) panel.innerHTML = accountCardHTML();
     const note = document.getElementById("sidebar-note");
     if (note) {
-      note.textContent = activeAccount
-        ? "Local profile · device only" + (cloudState.user && !cloudState.user.isAnonymous ? " · Google synced" : "")
-        : "Guest record · sign in for profiles";
+      const user = cloudIdentity();
+      note.textContent = user
+        ? (user.provider === "google.com" ? "Google account · synced" : "Email account · synced")
+        : activeAccount
+        ? "Local profile · offline only"
+        : "Sign in required";
     }
   }
 
@@ -745,6 +854,7 @@
     window.clearTimeout(cloudSaveTimer);
     try {
       const remote = await cloud.loadProgress();
+      if (!cloudState.user || cloudState.user.uid !== user.uid) return;
       if (remote) {
         progress = mergeProgress(progress, remote);
         normalizeStreak();
@@ -753,7 +863,7 @@
       cloudUid = user.uid;
       await cloud.saveProgress(progress);
       if (state.routeKey) paint();
-      if (!user.isAnonymous) toast("Google sign-in complete — progress merged.");
+      toast("Signed in — cloud progress merged.");
     } catch (error) {
       toast("Cloud sync is unavailable. Local progress is safe.", "is-warn");
     } finally {
@@ -764,9 +874,13 @@
   function handleCloudState(snapshot) {
     cloudState = snapshot || { configured: false, status: "unconfigured", user: null, error: null };
     updateAccountUI();
-    if (state.routeKey && (state.route.name === "settings" || state.route.name === "login")) paint();
-    if (cloudState.status === "signed-in" && cloudState.user && cloudState.user.uid !== cloudUid) {
-      hydrateCloud(cloudState.user);
+    const user = cloudIdentity();
+    if (user) {
+      activateCloudUser(user);
+    } else if (cloudUid) {
+      deactivateCloudUser();
+    } else if (state.routeKey && (state.route.name === "settings" || state.route.name === "login")) {
+      paint();
     }
   }
 
@@ -934,6 +1048,11 @@
 
   function render() {
     const route = parseHash();
+    if (!hasIdentity() && route.name !== "login" && route.name !== "settings") {
+      authRedirect = window.location.hash || "#/dashboard";
+      go("#/login");
+      return;
+    }
     const key = routeKey(route);
     const changed = key !== state.routeKey;
     state.route = route;
@@ -1127,7 +1246,7 @@
       '<div class="home-intro-copy">' +
       '<span class="eyebrow">Study annual · Vol. 1 · 2026-27</span>' +
       '<h1>What are we studying today?</h1>' +
-      '<p>Find your course, answer a few questions, and get an explanation you can actually use. Guest by default, no noise — just the work.</p>' +
+      '<p>Find your course, answer a few questions, and get an explanation you can actually use. Sign in once, then keep the noise out and do the work.</p>' +
       '<button class="home-search" type="button" data-action="focus-search">' +
       '<i data-lucide="search"></i><span>Search subjects, topics or questions</span><kbd aria-hidden="true">/</kbd></button>' +
       '<div class="home-actions">' +
@@ -1849,9 +1968,10 @@
 
   function renderLogin() {
     const profiles = accountStore.accounts.map(loginProfileRow).join("");
-    const googleUser = cloudState.user && !cloudState.user.isAnonymous ? cloudState.user : null;
-    const busy = cloudState.operation === "google" || cloudState.status === "loading" || cloudState.status === "signing-in";
+    const cloudUser = cloudIdentity();
+    const busy = Boolean(cloudState.operation) || cloudState.status === "loading" || cloudState.status === "signing-in";
     const activeName = activeAccount ? activeAccount.name : "";
+    const provider = cloudUser && cloudUser.provider === "google.com" ? "Google account" : "Email account";
 
     const localCard =
       '<section class="settings-card card login-card">' +
@@ -1861,45 +1981,63 @@
           '<span class="account-avatar">' + esc(activeName.charAt(0).toUpperCase()) + "</span>" +
           '<div class="account-copy"><strong>' + esc(activeName) + '</strong><small>' + esc(activeAccount.email || "Signed in on this device") + "</small></div>" +
           "</div>" +
-          '<div class="account-actions"><button type="button" class="account-btn account-btn-quiet" data-action="local-signout"><i data-lucide="log-out"></i>Sign out to guest</button></div>'
-        : '<p>Create a profile on this browser. Each profile has its own progress, XP, streak, bookmarks and mistakes.</p>') +
+          '<div class="account-actions"><button type="button" class="account-btn account-btn-quiet" data-action="local-signout"><i data-lucide="log-out"></i>Sign out</button></div>'
+        : '<p>No cloud account? Create an offline profile on this browser. Each profile has its own progress, XP, streak, bookmarks and mistakes.</p>') +
       '<form class="login-form" data-form="local-login">' +
       '<label>Display name<input id="login-name" name="name" maxlength="40" autocomplete="nickname" placeholder="e.g. Alex" required /></label>' +
       '<label>Email <span>optional</span><input id="login-email" name="email" type="email" maxlength="120" autocomplete="email" placeholder="you@example.com" /></label>' +
-      '<button class="btn btn-primary" type="submit"><i data-lucide="log-in"></i>' + (activeAccount ? "Add another profile" : "Sign in on this device") + "</button>" +
+      '<button class="btn btn-primary" type="submit"><i data-lucide="log-in"></i>' + (activeAccount ? "Add another profile" : "Create offline profile") + "</button>" +
       "</form>" +
-      '<p class="account-note">Local profiles are stored in this browser and are <strong>not password protected</strong>. Use Google sync if you need a real cross-device account.</p>' +
+      '<p class="account-note">Local profiles are stored in this browser and are <strong>not password protected</strong>. Sign in above for a real cross-device account.</p>' +
       "</section>";
 
-    const profileCard = accountStore.accounts.length
-      ? '<section class="settings-card card login-card"><h2>Saved profiles</h2><div class="profile-list">' + profiles + "</div></section>"
+    const profileCard = !cloudUser && accountStore.accounts.length
+      ? '<section class="settings-card card login-card"><h2>Saved offline profiles</h2><div class="profile-list">' + profiles + "</div></section>"
       : "";
 
-    const googleCard =
-      '<section class="settings-card card login-card">' +
-      "<h2>Google cloud sync</h2>" +
-      (googleUser
-        ? '<div class="account-summary">' +
-          '<span class="account-avatar">' + esc((googleUser.displayName || googleUser.email || "G").charAt(0).toUpperCase()) + "</span>" +
-          '<div class="account-copy"><strong>' + esc(googleUser.displayName || googleUser.email || "Google account") + '</strong><small>' + esc(googleUser.email || "Signed in with Google") + "</small></div>" +
+    const cloudCard =
+      '<section class="settings-card card login-card login-cloud">' +
+      "<h2>Cloud account</h2>" +
+      (cloudUser
+        ? '<div class="account-summary login-current">' +
+          '<span class="account-avatar">' + esc((cloudUser.displayName || cloudUser.email || "C").charAt(0).toUpperCase()) + "</span>" +
+          '<div class="account-copy"><strong>' + esc(cloudUser.displayName || cloudUser.email || provider) + '</strong><small>' + esc(cloudUser.email || provider) + "</small></div>" +
           "</div>" +
-          '<div class="account-actions"><button type="button" class="account-btn account-btn-quiet" data-action="cloud-signout"><i data-lucide="log-out"></i>Disconnect Google</button></div>' +
-          '<p class="account-note">Progress is mirrored to your private Firestore record.</p>'
+          '<div class="account-actions"><button type="button" class="account-btn account-btn-quiet" data-action="cloud-signout"><i data-lucide="log-out"></i>Sign out of cloud</button></div>' +
+          '<p class="account-note">' + esc(provider) + " · progress is mirrored to your private Firestore record.</p>"
         : cloudState.configured
-        ? '<p>Continue with Google to mirror this device\u2019s progress to your private cloud record.</p>' +
-          '<div class="account-actions"><button type="button" class="account-btn" data-action="google-signin"' + (busy ? " disabled" : "") + '><i data-lucide="chrome"></i>' + (busy ? "Connecting…" : "Continue with Google") + "</button></div>" +
-          (cloudState.error ? '<p class="account-note">' + esc(cloudState.error) + "</p>" : "")
-        : '<p>Cloud sync is not configured on this deployment.</p><p class="account-note">Add the public Firebase keys to <code>firebase-config.js</code> to enable Google sign-in and multi-device sync.</p><div class="account-actions"><a class="account-btn" href="#/settings"><i data-lucide="settings"></i>Open setup guide</a></div>') +
+        ? '<p>Sign in to sync progress across devices. Email/password and Google are both supported.</p>' +
+          '<form class="login-form" data-form="cloud-signin">' +
+          '<label>Email<input name="email" type="email" autocomplete="email" maxlength="160" placeholder="you@example.com" required /></label>' +
+          '<label>Password<input name="password" type="password" autocomplete="current-password" minlength="6" placeholder="Your password" required /></label>' +
+          '<button class="btn btn-primary" type="submit"' + (busy ? " disabled" : "") + '><i data-lucide="log-in"></i>Sign in with email</button>' +
+          "</form>" +
+          '<details class="auth-more"><summary>Create an account</summary>' +
+          '<form class="login-form" data-form="cloud-signup">' +
+          '<label>Display name<input name="name" maxlength="60" autocomplete="nickname" placeholder="e.g. Alex" required /></label>' +
+          '<label>Email<input name="email" type="email" autocomplete="email" maxlength="160" placeholder="you@example.com" required /></label>' +
+          '<label>Password<input name="password" type="password" autocomplete="new-password" minlength="6" placeholder="At least 6 characters" required /></label>' +
+          '<button class="btn" type="submit"' + (busy ? " disabled" : "") + '><i data-lucide="user-plus"></i>Create account</button>' +
+          "</form></details>" +
+          '<details class="auth-more"><summary>Forgot password?</summary>' +
+          '<form class="login-form" data-form="cloud-reset">' +
+          '<label>Email<input name="email" type="email" autocomplete="email" maxlength="160" placeholder="you@example.com" required /></label>' +
+          '<button class="btn" type="submit"' + (busy ? " disabled" : "") + '><i data-lucide="mail"></i>Send reset link</button>' +
+          "</form></details>" +
+          '<div class="auth-divider"><span>or</span></div>' +
+          '<div class="account-actions"><button type="button" class="account-btn" data-action="google-signin"' + (busy ? " disabled" : "") + '><i data-lucide="globe"></i>' + (busy ? "Connecting…" : "Continue with Google") + "</button></div>" +
+          (cloudState.error ? '<p class="account-note auth-error">' + esc(cloudState.error) + "</p>" : "")
+        : '<p>Cloud login is not configured on this deployment. Use an offline profile below.</p><p class="account-note">Add the public Firebase keys to <code>firebase-config.js</code> to enable email/password and Google sign-in.</p><div class="account-actions"><a class="account-btn" href="#/settings"><i data-lucide="settings"></i>Open setup guide</a></div>') +
       "</section>";
 
     view.innerHTML =
       '<div class="view-inner">' +
       '<div class="page-head">' +
-      '<div><span class="eyebrow">Account</span><h1>Sign in</h1><p>Use a local profile on this device, or connect Google when cloud sync is configured.</p></div>' +
-      '<a class="btn btn-ghost" href="#/dashboard"><i data-lucide="layout-dashboard"></i>Dashboard</a>' +
+      '<div><span class="eyebrow">Account</span><h1>Sign in to study</h1><p>Use a cloud account for cross-device sync, or an offline profile that stays in this browser.</p></div>' +
+      (hasIdentity() ? '<a class="btn btn-ghost" href="#/dashboard"><i data-lucide="layout-dashboard"></i>Dashboard</a>' : "") +
       "</div>" +
-      '<div class="login-grid">' + localCard + profileCard + googleCard + "</div>" +
-      '<p class="account-note login-footnote">Local profiles stay in this browser. Clearing site data removes them. Google sync is the only cross-device option.</p>' +
+      '<div class="login-grid">' + cloudCard + (cloudUser ? "" : localCard + profileCard) + "</div>" +
+      '<p class="account-note login-footnote">Offline profiles are not password protected and clearing site data removes them. Cloud accounts are the only cross-device option.</p>' +
       "</div>";
   }
 
@@ -1926,14 +2064,14 @@
       '<div class="view-inner">' +
       '<div class="page-head">' +
       "<div><span class=\"eyebrow\">Workspace</span><h1>Settings &amp; progress</h1>" +
-      "<p>Separate local profiles on this browser. Optional Google sync mirrors progress across devices.</p></div>" +
+      "<p>Cloud accounts sync across devices through Firebase. Offline profiles stay in this browser.</p></div>" +
       '<a class="btn btn-ghost" href="#/dashboard"><i data-lucide="layout-dashboard"></i>Dashboard</a>' +
       "</div>" +
       '<div class="settings-grid">' +
 
       '<section class="settings-card card">' +
       "<h2>Account &amp; sync</h2>" +
-      '<p>Local profiles keep separate progress on this browser. Google sync is optional and needs Firebase.</p>' +
+      '<p>Email/password and Google accounts sync to Firestore. Local profiles are the offline fallback.</p>' +
       '<div class="account-panel">' + accountCardHTML() + "</div>" +
       '<p style="margin-top:10px"><a class="section-link" href="#/login"><i data-lucide="log-in"></i>Manage sign-in</a></p>' +
       (cloudState.configured ? "" : '<p class="account-note">Paste <code>apiKey</code>, <code>authDomain</code>, <code>projectId</code> and <code>appId</code> into <code>firebase-config.js</code>. The owner-only Firestore rules live in <code>firestore.rules</code>.</p>') +
@@ -2349,13 +2487,45 @@
   });
 
   view.addEventListener("submit", function (event) {
-    const form = event.target.closest('form[data-form="local-login"]');
+    const form = event.target.closest("form[data-form]");
     if (!form) return;
     event.preventDefault();
+
+    const kind = form.getAttribute("data-form");
     const name = form.elements.name ? form.elements.name.value : "";
     const email = form.elements.email ? form.elements.email.value : "";
-    createLocalAccount(name, email);
-    if (activeAccount) go("#/dashboard");
+    const password = form.elements.password ? form.elements.password.value : "";
+
+    if (kind === "local-login") {
+      createLocalAccount(name, email);
+      if (activeAccount) resumeAfterAuth();
+      return;
+    }
+
+    if (!cloud || !cloud.configured) {
+      toast("Add your Firebase web config before using cloud login.", "is-warn");
+      return;
+    }
+
+    if (kind === "cloud-signin") {
+      cloud.signInEmail(email, password).then(function (ok) {
+        if (ok && hasIdentity()) resumeAfterAuth();
+      });
+      return;
+    }
+
+    if (kind === "cloud-signup") {
+      cloud.signUpEmail(name, email, password).then(function (ok) {
+        if (ok && hasIdentity()) resumeAfterAuth();
+      });
+      return;
+    }
+
+    if (kind === "cloud-reset") {
+      cloud.resetPassword(email).then(function (ok) {
+        if (ok) toast("Password reset link sent to " + email.trim() + ".");
+      });
+    }
   });
 
   sidebarNav.addEventListener("click", function (event) {
@@ -2458,7 +2628,14 @@
     }
     buildIndex();
     initialiseAccounts();
+    legacyGuestProgress = takeLegacyGuestProgress();
     loadProgress();
+    if (activeAccount && legacyGuestProgress) {
+      progress = mergeProgress(progress, legacyGuestProgress);
+      legacyGuestProgress = null;
+      saveProgress();
+      clearLegacyGuestProgress();
+    }
     buildSearchIndex();
     attachCloud(window.QuestionaireCloud);
     window.addEventListener("questionaire:cloud-ready", function (event) {

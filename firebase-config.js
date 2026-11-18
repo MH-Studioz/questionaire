@@ -7,9 +7,12 @@
    Required keys:
      apiKey, authDomain, projectId, appId
 
-   Leave a value blank until the Firebase project and Google provider exist.
-   The site stays fully usable as a guest and shows a setup note instead of a
-   broken sign-in button.
+   Enable both sign-in providers in Firebase Authentication:
+     - Email/Password
+     - Google
+
+   Leave a value blank until the Firebase project exists. The site then uses
+   offline profiles and shows a setup note instead of a broken login button.
    ========================================================================== */
 
 window.FIREBASE_CONFIG = {

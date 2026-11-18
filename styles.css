@@ -4531,6 +4531,50 @@ body {
   height: 14px;
 }
 
+.auth-more {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.auth-more summary {
+  color: var(--text-soft);
+  font: 600 11px/1.3 var(--font-sans);
+  cursor: pointer;
+}
+
+.auth-more summary:hover {
+  color: var(--accent);
+}
+
+.auth-more .login-form {
+  margin-top: 10px;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 4px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.auth-error {
+  color: var(--danger);
+}
+
 .login-footnote {
   margin-top: 14px;
 }
