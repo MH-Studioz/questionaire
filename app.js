@@ -20,7 +20,7 @@
   const STORAGE_KEY = "questionaire.progress.v1";
   const THEME_KEY = "questionaire.theme";
   const THEMES = ["light", "dark", "oled"];
-  const THEME_COLORS = { light: "#f5f4ee", dark: "#0b1119", oled: "#000000" };
+  const THEME_COLORS = { light: "#f2eee4", dark: "#14120e", oled: "#000000" };
 
   const XP_PER_CORRECT = 12;
   const XP_PER_ATTEMPT = 4;
@@ -340,6 +340,10 @@
     return count === 1 ? singular : pluralWord;
   }
 
+  function pad2(value) {
+    return String(value).padStart(2, "0");
+  }
+
   function badgeClass(level) {
     const value = String(level || "").toLowerCase();
     if (value === "beginner") return "badge-beginner";
@@ -427,7 +431,6 @@
   function updateChrome() {
     const stats = getStats();
     setText("stat-streak", stats.streak);
-    setText("streak-plural", stats.streak === 1 ? "" : "s");
     setText("stat-xp", stats.xp);
     setText("stat-level", stats.level);
     setText("saved-count", reviewCount());
@@ -457,13 +460,14 @@
 
   function renderSidebar() {
     sidebarNav.innerHTML = window.STUDY_DATA.categories
-      .map(function (category) {
+      .map(function (category, categoryIndex) {
         const subjects = category.subjects
-          .map(function (subject) {
+          .map(function (subject, subjectIndex) {
             return (
               '<a class="nav-subject accent-' + esc(subject.accent || category.accent) + '" ' +
               'href="#/subject/' + esc(subject.id) + '/practice" data-nav-subject="' + esc(subject.id) + '">' +
-              "<span>" + esc(subject.title) + "</span>" +
+              '<span class="nav-subject-index">' + pad2(subjectIndex + 1) + "</span>" +
+              '<span class="nav-subject-title">' + esc(subject.title) + "</span>" +
               '<span class="nav-subject-level">' + subject.questions.length + "</span></a>"
             );
           })
@@ -471,8 +475,9 @@
         return (
           '<div class="nav-group accent-' + esc(category.accent) + '">' +
           '<button class="nav-group-head" type="button" aria-expanded="true">' +
-          '<i data-lucide="' + esc(category.icon) + '"></i>' +
-          "<span>" + esc(category.title) + "</span>" +
+          '<span class="nav-group-index">' + pad2(categoryIndex + 1) + "</span>" +
+          '<span class="nav-group-title">' + esc(category.title) + "</span>" +
+          '<span class="nav-group-count">' + category.subjects.length + "</span>" +
           '<i data-lucide="chevron-down" class="nav-chevron"></i>' +
           "</button>" +
           '<div class="nav-subjects">' + subjects + "</div>" +
@@ -541,7 +546,7 @@
         ? "Questionaire — Review queue"
         : route.name === "settings"
         ? "Questionaire — Settings"
-        : "Questionaire — Light, dark and OLED study";
+        : "Questionaire — A Study Annual";
 
     paint();
 
@@ -629,10 +634,7 @@
   function statCard(options) {
     return (
       '<article class="stat-card ' + options.accent + '">' +
-      '<div class="stat-card-top">' +
       '<span class="stat-card-label">' + esc(options.label) + "</span>" +
-      '<span class="stat-card-icon"><i data-lucide="' + options.icon + '"></i></span>' +
-      "</div>" +
       '<div class="stat-card-value">' + options.value +
       (options.unit ? "<small>" + esc(options.unit) + "</small>" : "") +
       "</div>" +
@@ -644,12 +646,14 @@
   function subjectCardHTML(entry) {
     const subject = entry.subject;
     const stats = subjectStats(subject);
+    const index = SUBJECTS.indexOf(entry) + 1;
     const tags = subject.tags.slice(0, 3).map(function (tag) {
       return '<span class="tag">' + esc(tag) + "</span>";
     }).join("");
     return (
       '<a class="subject-card ' + accentClass(entry) + '" href="#/subject/' + esc(subject.id) + '/practice">' +
       '<div class="subject-card-top">' +
+      '<span class="subject-index">' + pad2(index) + "</span>" +
       '<span class="subject-icon"><i data-lucide="' + esc(subject.icon) + '"></i></span>' +
       '<span class="badge ' + badgeClass(subject.level) + '">' + esc(subject.level) + "</span>" +
       "</div>" +
@@ -696,13 +700,15 @@
       );
     }).join("");
 
-    const categorySections = window.STUDY_DATA.categories.map(function (category) {
+    const categorySections = window.STUDY_DATA.categories.map(function (category, categoryIndex) {
       return (
         '<section class="dashboard-section accent-' + esc(category.accent) + '">' +
         '<div class="section-head">' +
-        "<div><h2><i data-lucide=\"" + esc(category.icon) + '"></i>' + esc(category.title) + "</h2>" +
+        '<div class="section-heading">' +
+        '<span class="section-index">' + pad2(categoryIndex + 1) + "</span>" +
+        "<h2>" + esc(category.title) + "</h2>" +
         "<p>" + esc(category.tagline) + "</p></div>" +
-        '<span class="section-link">' + category.subjects.length + " subjects</span>" +
+        '<span class="section-count">' + category.subjects.length + " subjects</span>" +
         "</div>" +
         '<div class="subject-grid">' +
         category.subjects.map(function (subject) {
@@ -714,27 +720,30 @@
 
     view.innerHTML =
       '<div class="view-inner">' +
-      '<section class="hero card">' +
+      '<section class="hero">' +
+      '<div class="hero-meta"><span>Questionaire</span><span>Study annual</span><span>No. 01</span></div>' +
+      '<div class="hero-body">' +
       '<div class="hero-copy">' +
       '<span class="eyebrow">' +
       esc(new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })) +
-      "</span>" +
-      "<h1>" + esc(greeting()) + ", <span>scientist.</span></h1>" +
-      "<p>" + SUBJECTS.length + " subject labs. Drill a question bank, read the cheat sheet, then take the timed exam. Your streak and mastery stay in this browser.</p>" +
+      " · Vol. 1</span>" +
+      "<h1>" + esc(greeting()) + ".</h1>" +
+      "<p>" + SUBJECTS.length + " subjects in this issue. Read the brief, drill the question bank, then sit a timed paper. Nothing leaves this browser.</p>" +
       '<div class="hero-actions">' +
-      '<a class="btn btn-primary" href="#/subject/' + esc(nextEntry.subject.id) + '/practice"><i data-lucide="play"></i>Start practising</a>' +
-      '<a class="btn btn-ghost" href="#/review"><i data-lucide="bookmark-check"></i>Open review queue</a>' +
+      '<a class="btn btn-primary" href="#/subject/' + esc(nextEntry.subject.id) + '/practice"><span>Begin with ' + esc(nextEntry.subject.title) + '</span><i data-lucide="arrow-right"></i></a>' +
+      '<a class="btn btn-ghost" href="#/review">Review queue <span class="btn-count">' + reviewCount() + "</span></a>" +
       "</div></div>" +
-      '<div class="hero-side">' +
-      '<div class="mastery-ring" style="--pct:' + solvedPct + '">' +
-      '<div class="mastery-ring-inner"><strong>' + solvedPct + "%</strong><span>solved</span></div>" +
-      "</div>" +
+      '<aside class="hero-side">' +
+      '<div class="mastery-figure"><strong class="mastery-number">' + solvedPct + '%</strong><span class="mastery-caption">of the question bank solved</span></div>' +
       '<div class="hero-side-meta">' +
-      '<div class="hero-side-row"><span>Level ' + stats.level + " · " + esc(stats.rank) + "</span><strong>" + stats.xp + " XP</strong></div>" +
-      '<div class="progress"><div class="progress-bar" style="width:' + stats.levelProgress + '%"></div></div>' +
-      '<div class="hero-side-row" style="margin-top:12px"><span>Questions solved</span><strong>' + stats.solved + "/" + totalQuestions + "</strong></div>" +
+      '<div class="hero-side-row"><span>Level ' + stats.level + "</span><strong>" + esc(stats.rank) + "</strong></div>" +
+      '<div class="hero-side-row"><span>Experience</span><strong>' + stats.xp + " XP</strong></div>" +
+      '<div class="hero-side-row"><span>Solved</span><strong>' + stats.solved + "/" + totalQuestions + "</strong></div>" +
       '<div class="hero-side-row"><span>Best streak</span><strong>' + stats.bestStreak + " " + plural(stats.bestStreak, "day", "days") + "</strong></div>" +
-      "</div></div></section>" +
+      "</div>" +
+      '<div class="progress"><div class="progress-bar" style="width:' + stats.levelProgress + '%"></div></div>' +
+      '<p class="hero-side-note">Level progress · ' + stats.xpToNext + " XP to next</p>" +
+      "</aside></div></section>" +
 
       '<section class="stats-grid" aria-label="Your statistics">' +
       statCard({
@@ -758,7 +767,7 @@
         accent: "accent-amber",
         value: stats.streak,
         unit: plural(stats.streak, "day", "days"),
-        foot: stats.streak > 0 ? "Best: " + stats.bestStreak + " days" : "Answer a question to start"
+        foot: stats.streak > 0 ? "Best: " + stats.bestStreak + " " + plural(stats.bestStreak, "day", "days") : "Answer a question to start"
       }) +
       statCard({
         label: "Level " + stats.level,
@@ -1333,16 +1342,16 @@
       '<div class="settings-grid">' +
 
       '<section class="settings-card card">' +
-      '<h2><i data-lucide="palette"></i>Appearance</h2>' +
-      '<p>Pick a palette. Light for daylight, dark for the lab, OLED for pure black.</p>' +
+      "<h2>Appearance</h2>" +
+      '<p>Pick a palette. Paper for daylight, Ink for the desk, OLED for pure black.</p>' +
       '<div class="theme-options">' +
-      themeOption("light", "Light", "light", "Paper & ink") +
-      themeOption("dark", "Dark", "dark", "Deep slate") +
+      themeOption("light", "Paper", "light", "Warm paper & ink") +
+      themeOption("dark", "Ink", "dark", "Warm black") +
       themeOption("oled", "OLED", "oled", "True black") +
       "</div></section>" +
 
       '<section class="settings-card card">' +
-      '<h2><i data-lucide="user-round"></i>Your record</h2>' +
+      "<h2>Your record</h2>" +
       '<p>Accuracy counts every attempt, so retries are included.</p>' +
       '<div class="settings-row"><span>Questions solved</span><strong>' + stats.solved + " / " + QUESTION_MAP.size + "</strong></div>" +
       '<div class="settings-row"><span>Total attempts</span><strong>' + stats.attempts + "</strong></div>" +
@@ -1350,12 +1359,12 @@
       '<div class="settings-row"><span>Level</span><strong>' + stats.level + " · " + esc(stats.rank) + "</strong></div>" +
       '<div class="settings-row"><span>Experience</span><strong>' + stats.xp + " XP</strong></div>" +
       '<div class="settings-row"><span>Current streak</span><strong>' + stats.streak + " " + plural(stats.streak, "day", "days") + "</strong></div>" +
-      '<div class="settings-row"><span>Best streak</span><strong>' + stats.bestStreak + " days</strong></div>" +
+      '<div class="settings-row"><span>Best streak</span><strong>' + stats.bestStreak + " " + plural(stats.bestStreak, "day", "days") + "</strong></div>" +
       '<div class="settings-row"><span>Review queue</span><strong>' + reviewCount() + "</strong></div>" +
       "</section>" +
 
       '<section class="settings-card card">' +
-      '<h2><i data-lucide="terminal"></i>Adding your own packs</h2>' +
+      "<h2>Adding your own packs</h2>" +
       '<p>Open <code>database.js</code>, copy a subject block, and refresh. No build step.</p>' +
       '<ul class="settings-list">' +
       "<li>Give each subject a unique <code>id</code> and add it to a category's <code>subjects</code> array.</li>" +
@@ -1366,7 +1375,7 @@
       "</ul></section>" +
 
       '<section class="settings-card card">' +
-      '<h2><i data-lucide="keyboard"></i>Shortcuts &amp; storage</h2>' +
+      "<h2>Shortcuts &amp; storage</h2>" +
       '<div class="settings-row"><span>Focus search</span><span><kbd>/</kbd></span></div>' +
       '<div class="settings-row"><span>Close search / drawer</span><span><kbd>Esc</kbd></span></div>' +
       '<div class="settings-row"><span>Open first result</span><span><kbd>Enter</kbd></span></div>' +
@@ -1375,7 +1384,7 @@
       "</section>" +
 
       '<section class="settings-card card">' +
-      '<h2><i data-lucide="shield-alert"></i>Danger zone</h2>' +
+      "<h2>Danger zone</h2>" +
       '<p>Resetting wipes solved questions, XP, streak, bookmarks and mistakes. It cannot be undone.</p>' +
       '<div class="settings-danger"><p>This device\u2019s record will be deleted immediately.</p>' +
       '<button type="button" class="btn btn-danger" data-action="reset"><i data-lucide="trash-2"></i>Reset progress</button></div>' +

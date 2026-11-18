@@ -51,9 +51,9 @@
 const STUDY_DATA = {
   meta: {
     title: "Questionaire",
-    tagline: "The Midnight Lab for serious study.",
-    version: "1.0.0",
-    updated: "2026-11-17"
+    tagline: "A printed study annual for serious practice.",
+    version: "1.2.0",
+    updated: "2026-11-18"
   },
 
   categories: [
@@ -1929,6 +1929,630 @@ const STUDY_DATA = {
                 "How to name simple alkanes and cycloalkanes.",
                 "How functional groups change a molecule's properties.",
                 "Why the same formula can describe different structures."
+              ]
+            }
+          ]
+        },
+
+        /* ------------------------------------------------------------------
+           16. COMPUTER SCIENCE
+           ------------------------------------------------------------------ */
+        {
+          id: "computer-science",
+          title: "Computer Science",
+          icon: "cpu",
+          accent: "sky",
+          level: "Intermediate",
+          blurb: "Algorithms, data structures and the real cost of a computation — without the jargon.",
+          tags: ["algorithms", "big-o", "binary search", "data structures", "recursion", "hash tables", "computer science"],
+          questions: [
+            {
+              id: "cs-1",
+              difficulty: "Beginner",
+              tags: ["big-o", "binary search", "complexity"],
+              prompt: "A sorted array of n items is searched with binary search. What is the worst-case running time?",
+              options: ["O(1)", "O(log n)", "O(n)", "O(n log n)"],
+              answer: 1,
+              hint: "Each comparison discards half of the remaining items.",
+              explanation: [
+                "Binary search compares the target with the middle item.",
+                "If it is not the target, the search continues in one half and discards the other half entirely.",
+                "The number of halvings needed to reach a single item is log base 2 of n.",
+                "So the worst-case running time is O(log n), far better than the O(n) of linear search."
+              ]
+            },
+            {
+              id: "cs-2",
+              difficulty: "Intermediate",
+              tags: ["hash tables", "lookup", "data structures"],
+              prompt: "Which data structure gives average O(1) lookup by key?",
+              options: ["Sorted array", "Hash table", "Linked list", "Stack"],
+              answer: 1,
+              hint: "A hash function turns a key into an index, so the table can jump straight to a bucket.",
+              explanation: [
+                "A hash table applies a hash function to each key to compute a bucket index.",
+                "On average the bucket holds few entries, so lookup, insertion and deletion take constant time.",
+                "A sorted array supports O(log n) search; a linked list and a stack require O(n) search.",
+                "The O(1) bound is an average. Poor hashing or many collisions can degrade it toward O(n)."
+              ]
+            },
+            {
+              id: "cs-3",
+              difficulty: "Intermediate",
+              tags: ["recursion", "base case", "stack overflow"],
+              prompt: "What happens when a recursive function has no base case?",
+              options: [
+                "It returns the last value automatically",
+                "It runs until the call stack overflows",
+                "It silently becomes iterative",
+                "It runs in O(1) time"
+              ],
+              answer: 1,
+              hint: "Every recursive call adds a frame to the call stack.",
+              explanation: [
+                "A recursive function needs a base case that stops further calls.",
+                "Without one, each call invokes another call with no termination condition.",
+                "Every call consumes a stack frame, and the stack has finite memory.",
+                "Eventually the runtime raises a stack-overflow error; no value is returned automatically."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "cs-s1",
+              title: "Complexity in Plain Terms",
+              icon: "gauge",
+              summary: "Big-O describes how work grows with input size, not how fast a particular machine is.",
+              points: [
+                "Big-O ignores constants and lower-order terms: O(2n + 5) is simply O(n).",
+                "O(1) constant: an array index or an average hash lookup.",
+                "O(log n) logarithmic: binary search over sorted data.",
+                "O(n) linear: one pass through a list. O(n log n) is typical of good sorting; O(n²) usually means nested loops."
+              ]
+            },
+            {
+              id: "cs-s2",
+              title: "Searching and Sorting",
+              icon: "search",
+              summary: "The fastest search depends on whether the data is sorted and on what you can afford to store.",
+              points: [
+                "Binary search requires sorted data. Each step halves the range, so a million items take about twenty comparisons.",
+                "Merge sort splits, sorts and merges: O(n log n) time, O(n) extra space, and it is stable.",
+                "Quicksort averages O(n log n) but degrades to O(n²) with bad pivots.",
+                "Linear search is O(n) but works on unsorted data and needs no extra space."
+              ]
+            },
+            {
+              id: "cs-s3",
+              title: "Data Structures as Trade-offs",
+              icon: "boxes",
+              summary: "Every structure buys speed somewhere and pays for it somewhere else.",
+              points: [
+                "Array: O(1) index, O(n) insertion or deletion in the middle, compact memory.",
+                "Linked list: O(1) insertion at a known node, O(n) search, extra memory for pointers.",
+                "Hash table: average O(1) lookup, no ordering, and collisions still need a strategy.",
+                "Balanced tree: O(log n) search, insert and delete while keeping keys ordered."
+              ]
+            }
+          ],
+          mistakes: [
+            "Treating O(log n) as constant time — it still grows, just very slowly.",
+            "Running binary search on unsorted data; the halving argument no longer holds.",
+            "Counting only time and ignoring extra memory such as merge sort's temporary array.",
+            "Assuming a hash table preserves insertion order; most do not."
+          ],
+          tips: [
+            {
+              title: "Trace the Loop",
+              icon: "repeat-2",
+              body: "When a complexity question looks ambiguous, write the loop bounds and count iterations for n = 1, 2, 4 and 8. The growth pattern usually becomes obvious before the algebra does."
+            },
+            {
+              title: "Name the Operation",
+              icon: "mouse-pointer-2",
+              body: "Access, search, insert and delete have different costs. Say which one the question is asking about before comparing structures — the right answer often changes."
+            },
+            {
+              title: "Measure Before Optimising",
+              icon: "timer",
+              body: "A theoretically faster algorithm can lose on small inputs because of overhead. Time the real workload first, then optimise the part that actually dominates."
+            }
+          ],
+          videos: [
+            {
+              youtube: "jZzyERW7h1A",
+              title: "CS50x 2024 — Lecture 3 — Algorithms",
+              channel: "CS50",
+              takeaways: [
+                "Linear and binary search compared on real data.",
+                "How Big-O describes running time.",
+                "Selection sort, bubble sort, recursion and merge sort."
+              ]
+            },
+            {
+              youtube: "aV8LlSmd1E8",
+              title: "CS50x 2025 — Lecture 5 — Data Structures",
+              channel: "CS50",
+              takeaways: [
+                "Stacks, queues and linked lists.",
+                "Trees, hash tables and tries.",
+                "How the choice of structure changes the cost of an operation."
+              ]
+            }
+          ]
+        }
+      ]
+    },
+
+    /* ======================================================================
+       HUMANITIES
+       ====================================================================== */
+    {
+      id: "humanities",
+      title: "Humanities",
+      tagline: "History, economies and close reading — the arguments behind the facts.",
+      icon: "landmark",
+      accent: "violet",
+      subjects: [
+        /* ------------------------------------------------------------------
+           17. WORLD HISTORY
+           ------------------------------------------------------------------ */
+        {
+          id: "world-history",
+          title: "World History",
+          icon: "landmark",
+          accent: "amber",
+          level: "Beginner",
+          blurb: "Trade routes, revolutions and the skill of reading a source instead of merely repeating it.",
+          tags: ["world history", "silk road", "french revolution", "columbian exchange", "sources", "trade", "empire"],
+          questions: [
+            {
+              id: "hist-1",
+              difficulty: "Beginner",
+              tags: ["silk road", "trade", "afro-eurasia"],
+              prompt: "What was the Silk Road?",
+              options: [
+                "A network of Afro-Eurasian trade routes carrying goods, ideas and disease",
+                "A single paved road built by the Roman Empire",
+                "A maritime route used only by Chinese merchants",
+                "A religious pilgrimage route to Mecca"
+              ],
+              answer: 0,
+              hint: "It was never one road, and it carried far more than silk.",
+              explanation: [
+                "The Silk Road was a shifting network of overland and maritime routes linking China, Central Asia, India, the Middle East and Europe.",
+                "Caravans moved silk, spices, metals and horses, while caravanserais provided water, rest and markets.",
+                "Ideas, religions, technologies and epidemics travelled the same routes; the Black Death moved along them in the 14th century.",
+                "Calling it a single road obscures the many local routes and middlemen who made long-distance trade possible."
+              ]
+            },
+            {
+              id: "hist-2",
+              difficulty: "Intermediate",
+              tags: ["french revolution", "fiscal crisis", "estates"],
+              prompt: "Which combination is a central cause of the French Revolution?",
+              options: [
+                "The collapse of the Roman Empire",
+                "A fiscal crisis worsened by unequal taxation and poor harvests",
+                "The invention of the steam engine",
+                "The signing of the Treaty of Versailles in 1919"
+              ],
+              answer: 1,
+              hint: "The state was short of money, and the groups best able to pay were largely exempt.",
+              explanation: [
+                "France faced a severe fiscal crisis after costly wars and accumulated debt.",
+                "The estate system placed the clergy and nobility above the vast majority, and much of the tax burden fell on commoners.",
+                "Poor harvests raised bread prices and sharpened urban hardship in the late 1780s.",
+                "Enlightenment ideas and the example of the American Revolution shaped how critics imagined an alternative, but the immediate trigger was a state that could not pay its bills."
+              ]
+            },
+            {
+              id: "hist-3",
+              difficulty: "Beginner",
+              tags: ["columbian exchange", "1492", "disease"],
+              prompt: "Which statement best describes the Columbian Exchange?",
+              options: [
+                "The transfer of plants, animals, people and diseases between the Americas and Afro-Eurasia after 1492",
+                "The exchange of silver for silk along the Silk Road",
+                "The migration of Europeans to Australia in the 18th century",
+                "The trade in spices between India and China"
+              ],
+              answer: 0,
+              hint: "It began with sustained contact between the hemispheres, and it went in both directions.",
+              explanation: [
+                "After 1492, sustained contact connected the Americas with Europe, Africa and Asia.",
+                "Crops such as maize and potatoes moved east; wheat, horses and cattle moved west.",
+                "People were forcibly moved through the Atlantic slave trade, and diseases such as smallpox devastated Indigenous populations.",
+                "The exchange reshaped diets, economies and demographics on both sides of the Atlantic."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "hist-s1",
+              title: "Trade Routes and Exchange",
+              icon: "route",
+              summary: "Long-distance trade moved beliefs and microbes as readily as silk and silver.",
+              points: [
+                "The Silk Road was a network of land and sea routes, not a single road; local merchants carried goods between overlapping segments.",
+                "Caravanserais offered water, shelter and markets, turning waypoints into cosmopolitan trading towns.",
+                "Goods travelled with technologies, religions, languages and diseases, including plague.",
+                "Indian Ocean trade depended on monsoon winds; trans-Saharan routes moved gold and salt."
+              ]
+            },
+            {
+              id: "hist-s2",
+              title: "Revolutions and Legitimacy",
+              icon: "landmark",
+              summary: "Revolutions are rarely one cause and rarely one moment; they are struggles over who may rule.",
+              points: [
+                "The French Revolution began in 1789 amid a fiscal crisis, food scarcity and resentment of aristocratic privilege.",
+                "The Declaration of the Rights of Man and Citizen asserted universal rights while excluding many people in practice.",
+                "The Revolution moved through constitutional monarchy, republic, the Terror and eventually Napoleon's rule.",
+                "Historians distinguish long-term structural causes, short-term triggers and contingent choices made by individuals."
+              ]
+            },
+            {
+              id: "hist-s3",
+              title: "Reading Sources Critically",
+              icon: "scroll-text",
+              summary: "A source is evidence of someone's perspective, not a transparent window onto the past.",
+              points: [
+                "Primary sources were produced in the period; secondary sources interpret it later. Both can be useful and both can be biased.",
+                "Ask who wrote a source, for whom, when, and with what purpose or constraint.",
+                "Corroborate claims across independent sources rather than trusting a single vivid account.",
+                "Notice silences: whose voices are missing, and what does the source take for granted?"
+              ]
+            }
+          ],
+          mistakes: [
+            "Treating the Silk Road as one road or one culture rather than a shifting network.",
+            "Explaining a revolution with a single cause and ignoring long-term and short-term factors.",
+            "Reading a primary source as neutral testimony instead of a situated account.",
+            "Using modern categories to judge past actors without explaining the difference in context."
+          ],
+          tips: [
+            {
+              title: "Build a Timeline Spine",
+              icon: "calendar-range",
+              body: "Memorise a short spine of dates and, more importantly, what happened between them. A cause-and-effect story is easier to recall than an isolated list of years."
+            },
+            {
+              title: "Follow the Silver",
+              icon: "coins",
+              body: "Trace one commodity through a system — silver from Potosí to Manila to China, for example. Following a single thread reveals how distant regions were connected."
+            },
+            {
+              title: "Ask Who Wrote It",
+              icon: "pencil-line",
+              body: "Before extracting a quote, identify the author's position, audience and purpose. The same event looks different in a court chronicle, a merchant's ledger and a letter from a soldier."
+            }
+          ],
+          videos: [
+            {
+              youtube: "vfe-eNq-Qyg",
+              title: "The Silk Road and Ancient Trade — Crash Course World History #9",
+              channel: "CrashCourse",
+              takeaways: [
+                "Why the Silk Road was a network rather than a single route.",
+                "How goods, ideas and disease moved together.",
+                "How long-distance trade shaped ordinary consumption."
+              ]
+            },
+            {
+              youtube: "lTTvKwCylFY",
+              title: "The French Revolution — Crash Course World History #29",
+              channel: "CrashCourse",
+              takeaways: [
+                "The fiscal and social pressures behind 1789.",
+                "The shift from constitutional monarchy to republic and Terror.",
+                "How revolutionary ideals spread beyond France."
+              ]
+            }
+          ]
+        },
+
+        /* ------------------------------------------------------------------
+           18. ECONOMICS
+           ------------------------------------------------------------------ */
+        {
+          id: "economics",
+          title: "Economics",
+          icon: "chart-line",
+          accent: "emerald",
+          level: "Beginner",
+          blurb: "Scarcity, incentives, prices and inflation — the grammar of everyday trade-offs.",
+          tags: ["economics", "supply and demand", "opportunity cost", "inflation", "markets", "incentives", "gdp"],
+          questions: [
+            {
+              id: "econ-1",
+              difficulty: "Beginner",
+              tags: ["demand", "price", "law of demand"],
+              prompt: "All else equal, what happens to quantity demanded when the price of a good rises?",
+              options: ["It falls", "It rises", "It stays exactly the same", "The demand curve shifts right"],
+              answer: 0,
+              hint: "The law of demand describes an inverse relationship between price and quantity demanded.",
+              explanation: [
+                "The law of demand says that, all else equal, a higher price leads buyers to purchase less.",
+                "This is a movement along the demand curve, not a shift of the curve.",
+                "A shift would require a change in something other than the good's own price, such as income or tastes.",
+                "The inverse relationship reflects both substitution toward alternatives and the income effect of a higher price."
+              ]
+            },
+            {
+              id: "econ-2",
+              difficulty: "Beginner",
+              tags: ["opportunity cost", "scarcity", "choice"],
+              prompt: "What is the opportunity cost of a choice?",
+              options: [
+                "The money actually spent on the choice",
+                "The value of the next-best alternative given up",
+                "The total cost of every alternative available",
+                "The price of the good after tax"
+              ],
+              answer: 1,
+              hint: "It is about what you did not do, not only what you paid.",
+              explanation: [
+                "Scarcity means choosing one use of a resource means giving up another.",
+                "The opportunity cost is the value of the best alternative you forgo, not the sum of all alternatives.",
+                "Money paid is part of the cost, but forgone time, income or enjoyment can matter just as much.",
+                "Because the next-best option differs between people, so does the opportunity cost of the same choice."
+              ]
+            },
+            {
+              id: "econ-3",
+              difficulty: "Intermediate",
+              tags: ["inflation", "price level", "purchasing power"],
+              prompt: "Which is the best definition of inflation?",
+              options: [
+                "A sustained rise in the general price level",
+                "A one-off increase in the price of oil",
+                "An increase in the money supply only",
+                "A fall in nominal wages"
+              ],
+              answer: 0,
+              hint: "Inflation is about the general price level over time, not one price or one month.",
+              explanation: [
+                "Inflation is a sustained increase in the average price of goods and services in an economy.",
+                "A single price rise, such as an oil shock, is not inflation unless it spreads into the general price level.",
+                "Inflation reduces the purchasing power of money: the same nominal amount buys fewer goods.",
+                "Statistical agencies estimate it using price indices such as the consumer price index."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "econ-s1",
+              title: "Scarcity and Choice",
+              icon: "scale",
+              summary: "Economics begins with limited means and unlimited wants, then studies how choices are made.",
+              points: [
+                "Scarcity is not the same as shortage: it is the gap between limited resources and competing wants.",
+                "Every choice has an opportunity cost — the value of the next-best option given up.",
+                "Marginal thinking compares the extra benefit of one more unit with its extra cost.",
+                "Incentives change behaviour, and policies change incentives whether or not that was the intention."
+              ]
+            },
+            {
+              id: "econ-s2",
+              title: "Supply, Demand, Equilibrium",
+              icon: "chart-line",
+              summary: "Prices coordinate buyers and sellers; curves summarise the plans behind those decisions.",
+              points: [
+                "Demand curves slope downward and supply curves slope upward, all else equal.",
+                "A change in the good's own price moves along a curve; a change in income, tastes, technology or input costs shifts the curve.",
+                "Equilibrium is the price at which quantity supplied equals quantity demanded.",
+                "A price ceiling below equilibrium creates a shortage; a price floor above it creates a surplus."
+              ]
+            },
+            {
+              id: "econ-s3",
+              title: "Inflation and Measurement",
+              icon: "trending-up",
+              summary: "Nominal numbers can mislead; real values adjust for the changing value of money.",
+              points: [
+                "Inflation is a sustained rise in the general price level, not a rise in one price.",
+                "The consumer price index tracks a basket of household goods and services over time.",
+                "Nominal wages are measured in current money; real wages adjust for inflation and show purchasing power.",
+                "Unexpected inflation tends to hurt lenders and savers and help borrowers, because debts are repaid in cheaper money."
+              ]
+            }
+          ],
+          mistakes: [
+            "Confusing a movement along a demand curve with a shift of the curve.",
+            "Treating price as the same thing as value, or cost as the same thing as opportunity cost.",
+            "Ignoring opportunity cost when a choice looks free in money terms.",
+            "Comparing nominal wages across years without adjusting for inflation."
+          ],
+          tips: [
+            {
+              title: "Think at the Margin",
+              icon: "target",
+              body: "Ask what one more unit adds to benefit and to cost. Decisions are rarely all-or-nothing; the useful question is usually whether the next unit is worth it."
+            },
+            {
+              title: "Name the Alternative",
+              icon: "list",
+              body: "Whenever you identify a cost, write down the best thing you gave up instead. If you cannot name it, you have not yet found the opportunity cost."
+            },
+            {
+              title: "Real vs Nominal",
+              icon: "percent",
+              body: "Before comparing money across time, adjust for inflation. A raise smaller than inflation is a pay cut in real terms, even though the nominal number rose."
+            }
+          ],
+          videos: [
+            {
+              youtube: "g9aDizJpd_s",
+              title: "Supply and Demand — Crash Course Economics #4",
+              channel: "CrashCourse",
+              takeaways: [
+                "How demand and supply curves are built.",
+                "Why equilibrium prices coordinate buyers and sellers.",
+                "How shortages and surpluses appear."
+              ]
+            },
+            {
+              youtube: "T8-85cZRI9o",
+              title: "Inflation and Bubbles and Tulips — Crash Course Economics #7",
+              channel: "CrashCourse",
+              takeaways: [
+                "How inflation is measured.",
+                "Why asset bubbles form and burst.",
+                "What tulip mania does and does not prove."
+              ]
+            }
+          ]
+        },
+
+        /* ------------------------------------------------------------------
+           19. ENGLISH LITERATURE
+           ------------------------------------------------------------------ */
+        {
+          id: "english-literature",
+          title: "English Literature",
+          icon: "feather",
+          accent: "rose",
+          level: "Intermediate",
+          blurb: "Close reading, figurative language and narration — how a text makes meaning line by line.",
+          tags: ["literature", "close reading", "metaphor", "poetry", "narrator", "point of view", "analysis"],
+          questions: [
+            {
+              id: "lit-1",
+              difficulty: "Beginner",
+              tags: ["figurative language", "metaphor"],
+              prompt: "“The classroom was a zoo” is an example of which figure of speech?",
+              options: ["Metaphor", "Simile", "Personification", "Hyperbole"],
+              answer: 0,
+              hint: "It states that one thing is another, without using like or as.",
+              explanation: [
+                "A metaphor asserts that one thing is another: the classroom is a zoo.",
+                "A simile makes the comparison explicit with like or as: the classroom was like a zoo.",
+                "Personification would give the classroom human qualities; hyperbole would exaggerate for effect.",
+                "The metaphor works by transferring the noise and disorder associated with a zoo onto the classroom."
+              ]
+            },
+            {
+              id: "lit-2",
+              difficulty: "Intermediate",
+              tags: ["narrator", "point of view", "unreliable"],
+              prompt: "Why can a first-person narrator's account be limited?",
+              options: [
+                "Because the narrator knows every character's thoughts",
+                "Because the narrator is always the author",
+                "Because the account is filtered through one character's knowledge and bias",
+                "Because first-person narration cannot describe events"
+              ],
+              answer: 2,
+              hint: "The reader only knows what this character knows, and only as they choose to tell it.",
+              explanation: [
+                "A first-person narrator speaks as 'I' and can report only what that character perceives, remembers or chooses to reveal.",
+                "Their account is shaped by their knowledge, assumptions and interests, which may differ from the author's.",
+                "This does not make the account false by default, but it does make it partial.",
+                "Writers can exploit that limitation to create irony or an unreliable narrator."
+              ]
+            },
+            {
+              id: "lit-3",
+              difficulty: "Advanced",
+              tags: ["poetry", "enjambment", "form"],
+              prompt: "What is enjambment in poetry?",
+              options: [
+                "A pause in the middle of a line",
+                "The continuation of a sentence across a line break without end punctuation",
+                "The repetition of initial consonant sounds",
+                "A two-line stanza with rhyming couplets"
+              ],
+              answer: 1,
+              hint: "The sentence runs past the end of the line instead of stopping with the line.",
+              explanation: [
+                "Enjambment occurs when a sentence or clause continues across a line break without punctuation.",
+                "It can speed the reader forward or create tension between the line's rhythm and its syntax.",
+                "A pause within a line is a caesura; repeated initial consonants are alliteration.",
+                "A closed line, by contrast, ends with punctuation and a syntactic stop."
+              ]
+            }
+          ],
+          study: [
+            {
+              id: "lit-s1",
+              title: "Close Reading, Line by Line",
+              icon: "feather",
+              summary: "Meaning lives in particular words, line breaks and turns — not only in the plot summary.",
+              points: [
+                "Read once for sense, then again with a pencil, marking repetitions, oppositions and surprising word choices.",
+                "Track shifts: changes in tense, address, tone, setting or line length often mark the poem's turn.",
+                "Notice repetitions and contrasts; what the text keeps returning to is rarely accidental.",
+                "Attend to syntax and punctuation. A semicolon, a short line or a missing full stop changes the pace and the emphasis."
+              ]
+            },
+            {
+              id: "lit-s2",
+              title: "Figurative Language",
+              icon: "quote",
+              summary: "A device is not the point; the point is what the comparison lets you see.",
+              points: [
+                "A metaphor asserts that one thing is another; a simile makes the comparison explicit with like or as.",
+                "Personification gives human qualities to non-human things; metonymy substitutes an attribute or associated object for the whole.",
+                "Identify the device, then explain its effect: what does the comparison make visible, and what does it obscure?",
+                "Avoid device-spotting as an end in itself. A list of techniques without interpretation is not an argument."
+              ]
+            },
+            {
+              id: "lit-s3",
+              title: "Narration and Point of View",
+              icon: "eye",
+              summary: "Who tells the story, and what they cannot know, shapes what the reader can believe.",
+              points: [
+                "First person is filtered through a narrator's knowledge and bias; the reader sees the world from inside that perspective.",
+                "Third-person limited stays close to one character; omniscient moves between minds; objective reports only what can be observed.",
+                "Unreliable narrators invite readers to read against the account rather than simply accept it.",
+                "Free indirect discourse blends a character's voice with the narrator's, blurring the boundary between them."
+              ]
+            }
+          ],
+          mistakes: [
+            "Identifying a device without explaining its effect on meaning.",
+            "Calling every comparison a simile, even when the text says one thing is another.",
+            "Confusing the author with the narrator, especially in first-person fiction.",
+            "Ignoring form — line breaks, stanza shape and syntax — when interpreting a poem."
+          ],
+          tips: [
+            {
+              title: "Quote, Then Zoom",
+              icon: "quote",
+              body: "Choose the shortest quotation that supports your point, then examine one or two specific words in it. Close attention to diction is more persuasive than a long block quote."
+            },
+            {
+              title: "Track the Turn",
+              icon: "route",
+              body: "In a poem or passage, find the moment the argument or mood changes. The turn is often where the meaning is concentrated, and it gives your paragraph a structure."
+            },
+            {
+              title: "Write the So-What",
+              icon: "pen-line",
+              body: "After every observation, write one sentence beginning 'This matters because…'. If you cannot finish it, the observation is not yet analysis."
+            }
+          ],
+          videos: [
+            {
+              youtube: "MSYw502dJNY",
+              title: "How and Why We Read — Crash Course English Literature #1",
+              channel: "CrashCourse",
+              takeaways: [
+                "Why critical reading is a form of communication.",
+                "The difference between authorial intent and reader interpretation.",
+                "How to read for empathy and evidence."
+              ]
+            },
+            {
+              youtube: "acURl_KBiRI",
+              title: "What is Point of View? — A Literary Guide",
+              channel: "OSU School of Writing, Literature and Film",
+              takeaways: [
+                "How first-person and third-person perspectives differ.",
+                "What a narrator can and cannot know.",
+                "How point of view shapes a reader's trust."
               ]
             }
           ]
