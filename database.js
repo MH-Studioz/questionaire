@@ -52,7 +52,7 @@ const STUDY_DATA = {
   meta: {
     title: "Questionaire",
     tagline: "A printed study annual for serious practice.",
-    version: "1.5.0",
+    version: "1.5.1",
     updated: "2026-11-18"
   },
 
@@ -3222,12 +3222,12 @@ const STUDY_DATA = {
               tags: ["greetings", "vocabulary"],
               prompt: "What does '¿Cómo estás?' mean?",
               options: [
-                "How are you?",
                 "What is your name?",
                 "Where are you from?",
+                "How are you?",
                 "How old are you?"
               ],
-              answer: 0,
+              answer: 2,
               hint: "It is the question you ask after 'Hola'. The usual reply is 'Bien, gracias'.",
               explanation: [
                 "'¿Cómo estás?' is the informal way to ask 'How are you?'.",
@@ -3241,8 +3241,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["gender", "articles", "nouns"],
               prompt: "Which definite article goes with 'libro' (book)?",
-              options: ["el", "la", "los", "las"],
-              answer: 0,
+              options: ["la", "el", "los", "las"],
+              answer: 1,
               hint: "'Libro' is masculine and singular. Spanish articles agree in both gender and number.",
               explanation: [
                 "'Libro' is a masculine singular noun, so it takes the masculine singular article 'el'.",
@@ -3256,8 +3256,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["present tense", "verb conjugation", "hablar"],
               prompt: "Complete the sentence: 'Ella ___ español.' (hablar)",
-              options: ["habla", "hablas", "hablo", "hablan"],
-              answer: 0,
+              options: ["hablas", "hablo", "hablan", "habla"],
+              answer: 3,
               hint: "'Ella' is third-person singular. Regular -ar verbs take -a in that form.",
               explanation: [
                 "'Hablar' is a regular -ar verb. Drop -ar to get the stem 'habl-'.",
@@ -3370,12 +3370,12 @@ const STUDY_DATA = {
               tags: ["greetings", "register"],
               prompt: "When is 'Bonsoir' appropriate?",
               options: [
-                "In the evening, when arriving or greeting someone",
                 "Early in the morning",
+                "In the evening, when arriving or greeting someone",
                 "Only in written French",
                 "When saying goodbye at bedtime"
               ],
-              answer: 0,
+              answer: 1,
               hint: "It contains 'soir' — evening. 'Bonne nuit' is what you say before sleep.",
               explanation: [
                 "'Bonsoir' is used from late afternoon or early evening onward, usually when arriving somewhere.",
@@ -3389,8 +3389,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["gender", "articles", "nouns"],
               prompt: "Which article goes with 'maison' (house)?",
-              options: ["la", "le", "les", "un"],
-              answer: 0,
+              options: ["le", "les", "un", "la"],
+              answer: 3,
               hint: "'Maison' is feminine singular. Check the noun's gender before choosing the article.",
               explanation: [
                 "'Maison' is feminine singular, so the definite article is 'la': 'la maison'.",
@@ -3517,8 +3517,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["gender", "articles", "diminutives"],
               prompt: "Which article is correct for 'Mädchen' (girl)?",
-              options: ["das", "der", "die", "den"],
-              answer: 0,
+              options: ["der", "die", "den", "das"],
+              answer: 3,
               hint: "The ending -chen is a diminutive. All German diminutives are neuter, regardless of meaning.",
               explanation: [
                 "'Mädchen' ends in the diminutive suffix -chen, and every -chen noun is neuter.",
@@ -3552,8 +3552,8 @@ const STUDY_DATA = {
               difficulty: "Intermediate",
               tags: ["prepositions", "dative", "contractions"],
               prompt: "Complete the sentence: 'Ich fahre ___ Schule.'",
-              options: ["zur", "zum", "in", "auf"],
-              answer: 0,
+              options: ["zum", "in", "zur", "auf"],
+              answer: 2,
               hint: "'Schule' is feminine. The preposition 'zu' contracts with 'der' in the dative.",
               explanation: [
                 "'Schule' is feminine, so the dative article after 'zu' is 'der'.",
@@ -3680,8 +3680,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["ser vs estar", "verbs", "meaning"],
               prompt: "Which verb describes a permanent characteristic?",
-              options: ["ser", "estar", "ter", "ficar"],
-              answer: 0,
+              options: ["estar", "ter", "ser", "ficar"],
+              answer: 2,
               hint: "Think of identity, origin and profession — the things that define what something is.",
               explanation: [
                 "'Ser' describes identity, origin, nationality and generally permanent characteristics: 'Sou brasileiro'.",
@@ -3695,8 +3695,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["present tense", "ser", "nationality"],
               prompt: "Complete the sentence: 'Eu ___ brasileiro.'",
-              options: ["sou", "estou", "tenho", "fico"],
-              answer: 0,
+              options: ["estou", "sou", "tenho", "fico"],
+              answer: 1,
               hint: "Nationality is treated as identity in Portuguese.",
               explanation: [
                 "Nationality takes 'ser': 'Eu sou brasileiro'.",
@@ -3809,12 +3809,12 @@ const STUDY_DATA = {
               tags: ["word order", "grammar"],
               prompt: "What is the basic Hindi word order?",
               options: [
-                "Subject - Object - Verb",
                 "Subject - Verb - Object",
+                "Subject - Object - Verb",
                 "Verb - Subject - Object",
                 "Object - Verb - Subject"
               ],
-              answer: 0,
+              answer: 1,
               hint: "The verb waits until the end of the clause.",
               explanation: [
                 "Hindi is an SOV language: the subject comes first, the object next, and the verb last.",
@@ -3829,12 +3829,12 @@ const STUDY_DATA = {
               tags: ["greetings", "politeness", "vocabulary"],
               prompt: "What does 'आप कैसे हैं?' mean?",
               options: [
-                "How are you? (formal)",
                 "What is your name?",
                 "Where are you going?",
-                "How old are you?"
+                "How old are you?",
+                "How are you? (formal)"
               ],
-              answer: 0,
+              answer: 3,
               hint: "'आप' is the formal 'you'; 'कैसे' asks 'how'.",
               explanation: [
                 "'आप कैसे हैं?' means 'How are you?' and uses the formal pronoun 'आप'.",
@@ -3848,8 +3848,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["postpositions", "grammar", "location"],
               prompt: "Which postposition means 'in' in 'घर में'?",
-              options: ["में", "पर", "से", "को"],
-              answer: 0,
+              options: ["पर", "से", "में", "को"],
+              answer: 2,
               hint: "'घर' means house. The word that follows it marks location inside.",
               explanation: [
                 "'में' means 'in': 'घर में' = 'in the house'.",
@@ -3961,8 +3961,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["tones", "pronunciation", "pinyin"],
               prompt: "Which tone is 'mā' (妈)?",
-              options: ["First tone — high and level", "Second tone — rising", "Third tone — dipping", "Fourth tone — falling"],
-              answer: 0,
+              options: ["Second tone — rising", "Third tone — dipping", "Fourth tone — falling", "First tone — high and level"],
+              answer: 3,
               hint: "The flat line over the a is the clue.",
               explanation: [
                 "The macron in 'mā' marks the first tone: a high, level pitch.",
@@ -3976,8 +3976,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["measure words", "nouns", "grammar"],
               prompt: "Which measure word goes with '书' (book)?",
-              options: ["本", "张", "只", "杯"],
-              answer: 0,
+              options: ["张", "本", "只", "杯"],
+              answer: 1,
               hint: "This measure word is used for books and other bound volumes.",
               explanation: [
                 "'本' (běn) is the measure word for books: '一本书' (one book).",
@@ -4125,8 +4125,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["vocabulary", "greetings"],
               prompt: "What does 'ありがとう' mean?",
-              options: ["Thank you", "Good morning", "Excuse me", "Goodbye"],
-              answer: 0,
+              options: ["Good morning", "Excuse me", "Thank you", "Goodbye"],
+              answer: 2,
               hint: "It is one of the first phrases every Japanese learner picks up.",
               explanation: [
                 "'ありがとう' (arigatou) means 'thank you' in casual speech.",
@@ -4140,8 +4140,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["verbs", "politeness", "present tense"],
               prompt: "Which is the polite present form of '食べる' (to eat)?",
-              options: ["食べます", "食べた", "食べない", "食べろ"],
-              answer: 0,
+              options: ["食べた", "食べない", "食べろ", "食べます"],
+              answer: 3,
               hint: "Polite verbs end in -ます in the present and future.",
               explanation: [
                 "'食べます' (tabemasu) is the polite present/future form: 'I eat' or 'I will eat'.",
@@ -4253,8 +4253,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["script", "reading", "direction"],
               prompt: "In which direction is Arabic written?",
-              options: ["Right to left", "Left to right", "Top to bottom", "Alternating by line"],
-              answer: 0,
+              options: ["Left to right", "Top to bottom", "Right to left", "Alternating by line"],
+              answer: 2,
               hint: "The first letter of a word is on the right.",
               explanation: [
                 "Arabic is written and read from right to left.",
@@ -4283,8 +4283,8 @@ const STUDY_DATA = {
               difficulty: "Beginner",
               tags: ["roots", "vocabulary", "morphology"],
               prompt: "The root ك-ت-ب is associated with...",
-              options: ["writing", "eating", "travelling", "sleeping"],
-              answer: 0,
+              options: ["eating", "writing", "travelling", "sleeping"],
+              answer: 1,
               hint: "'كتاب' means book and 'كاتب' means writer.",
               explanation: [
                 "The root ك-ت-ب carries the core meaning of writing.",
@@ -4397,12 +4397,12 @@ const STUDY_DATA = {
               tags: ["subjunctive", "conditionals", "grammar"],
               prompt: "Which sentence uses the subjunctive correctly?",
               options: [
-                "If I were you, I would apologise.",
                 "If I was you, I would apologise.",
                 "If I am you, I would apologise.",
+                "If I were you, I would apologise.",
                 "If I be you, I would apologise."
               ],
-              answer: 0,
+              answer: 2,
               hint: "In a hypothetical condition that is contrary to fact, formal English uses 'were' for all persons.",
               explanation: [
                 "'If I were you' is the standard subjunctive form for an unreal or hypothetical condition.",
@@ -4416,8 +4416,8 @@ const STUDY_DATA = {
               difficulty: "Intermediate",
               tags: ["passive voice", "voice", "syntax"],
               prompt: "'The cake was eaten by Sam' is an example of...",
-              options: ["The passive voice", "The active voice", "An imperative", "A interrogative"],
-              answer: 0,
+              options: ["The active voice", "The passive voice", "An imperative", "An interrogative"],
+              answer: 1,
               hint: "The subject receives the action rather than performing it.",
               explanation: [
                 "In the passive voice, the subject is acted upon: 'The cake was eaten'.",
@@ -4432,12 +4432,12 @@ const STUDY_DATA = {
               tags: ["register", "politeness", "writing"],
               prompt: "Which is the most formal request?",
               options: [
-                "Could you possibly send the report?",
                 "Send the report.",
                 "Can you send it?",
-                "Gimme the report."
+                "Gimme the report.",
+                "Could you possibly send the report?"
               ],
-              answer: 0,
+              answer: 3,
               hint: "Hedging and modal distance raise the register.",
               explanation: [
                 "'Could you possibly send the report?' uses a past-modal form and a hedge, making it the most formal.",
