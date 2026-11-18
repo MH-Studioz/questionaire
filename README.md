@@ -33,9 +33,9 @@ git push origin main
 
 Cloud login only works after the public Firebase config is filled in and the providers are enabled. See [Firebase setup](#firebase-setup).
 
-## Release 2.0.0
+## Release 0.6-alpha
 
-The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It covers the real login system, removal of guest profiles, offline fallback, the 443-subject catalogue, 47 languages, AP/exam banks, and the fixes made in this release.
+The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It covers the real login system, removal of guest profiles, offline fallback, the 443-subject catalogue, 47 languages, AP/exam banks, language-bank fixes, dead-code cleanup, and the known alpha limitations.
 
 ## Files
 
@@ -54,7 +54,8 @@ The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It cover
 | `firebase-config.js` | Public Firebase web config (blank until the project exists) |
 | `firebase-sync.js` | Email/password + Google auth, password reset, owner-only Firestore reads and writes |
 | `firestore.rules` | `users/{uid}` owner-only rules |
-| `RELEASE_NOTES.md` | Release 2.0.0 feature and fix list |
+| `RELEASE_NOTES.md` | 0.6-alpha feature, fix and limitation list |
+| `ROADMAP.md` | Prioritized next steps after the alpha |
 
 ## Content
 

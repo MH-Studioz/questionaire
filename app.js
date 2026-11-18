@@ -1141,24 +1141,6 @@
      Dashboard
      -------------------------------------------------------------------------- */
 
-  function greeting() {
-    const hour = new Date().getHours();
-    if (hour < 5) return "Still up";
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
-    return "Good evening";
-  }
-
-  function recommendedEntry() {
-    for (let i = 0; i < SUBJECTS.length; i += 1) {
-      const entry = SUBJECTS[i];
-      if (subjectStats(entry.subject).solved < questionTotal(entry.subject)) {
-        return entry;
-      }
-    }
-    return SUBJECTS[0];
-  }
-
   function continueEntries() {
     const active = SUBJECTS.map(function (entry) {
       return { entry: entry, solved: subjectStats(entry.subject).solved };
@@ -1173,45 +1155,6 @@
       return SUBJECTS.find(function (entry) { return entry.category.id === categoryId; });
     }).filter(Boolean);
     return starters.length ? starters : SUBJECTS.slice(0, 3);
-  }
-
-  function statCard(options) {
-    return (
-      '<article class="stat-card ' + options.accent + '">' +
-      '<span class="stat-card-label">' + esc(options.label) + "</span>" +
-      '<div class="stat-card-value">' + options.value +
-      (options.unit ? "<small>" + esc(options.unit) + "</small>" : "") +
-      "</div>" +
-      '<p class="stat-card-foot">' + options.foot + "</p>" +
-      "</article>"
-    );
-  }
-
-  function subjectCardHTML(entry) {
-    const subject = entry.subject;
-    const stats = subjectStats(subject);
-    const index = SUBJECTS.indexOf(entry) + 1;
-    const tags = subject.tags.slice(0, 3).map(function (tag) {
-      return '<span class="tag">' + esc(tag) + "</span>";
-    }).join("");
-    return (
-      '<a class="subject-card ' + accentClass(entry) + '" href="#/subject/' + esc(subject.id) + '/practice">' +
-      '<div class="subject-card-top">' +
-      '<span class="subject-index">' + pad2(index) + "</span>" +
-      '<span class="subject-icon"><i data-lucide="' + esc(subject.icon) + '"></i></span>' +
-      '<span class="badge ' + badgeClass(subject.level) + '">' + esc(subject.level) + "</span>" +
-      "</div>" +
-      '<h3 class="subject-title">' + esc(subject.title) + "</h3>" +
-      '<p class="subject-blurb">' + esc(subject.blurb) + "</p>" +
-      '<div class="subject-tags">' + tags + "</div>" +
-      '<div class="subject-progress"><div class="progress"><div class="progress-bar" style="width:' + stats.pct + '%"></div></div></div>' +
-      '<div class="subject-meta">' +
-      '<span><i data-lucide="circle-help"></i>' + stats.total + " Qs</span>" +
-      '<span><i data-lucide="book-open"></i>' + subject.study.length + "</span>" +
-      '<span><i data-lucide="play"></i>' + subject.videos.length + "</span>" +
-      '<span class="subject-pct">' + stats.solved + "/" + stats.total + "</span>" +
-      "</div></a>"
-    );
   }
 
   function renderDashboard() {

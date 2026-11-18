@@ -17,7 +17,6 @@
   if (!DATA || !Array.isArray(DATA.categories)) return;
 
   const TARGET = 1000;
-  const SAMPLE = 20;
   const CONTENT = window.ExamPrepContent || {};
 
   function hash(value) {
@@ -217,6 +216,7 @@
     polish: [["cześć", "hello"], ["dziękuję", "thank you"], ["książka", "book"], ["dom", "house"], ["woda", "water"], ["przyjaciel", "friend"], ["szkoła", "school"], ["jeść", "to eat"]],
     dutch: [["hallo", "hello"], ["dank je", "thank you"], ["boek", "book"], ["huis", "house"], ["water", "water"], ["vriend", "friend"], ["school", "school"], ["eten", "to eat"]],
     greek: [["γεια σου", "hello"], ["ευχαριστώ", "thank you"], ["βιβλίο", "book"], ["σπίτι", "house"], ["νερό", "water"], ["φίλος", "friend"], ["σχολείο", "school"], ["τρώω", "to eat"]],
+    "ancient-greek": [["χαῖρε", "hello"], ["εὐχαριστῶ", "thank you"], ["βιβλίον", "book"], ["οἶκος", "house"], ["ὕδωρ", "water"], ["φίλος", "friend"], ["διδασκαλεῖον", "school"], ["ἐσθίω", "to eat"], ["ἀγαθός", "good"], ["λέγω", "to speak"]],
     bengali: [["নমস্কার", "hello"], ["ধন্যবাদ", "thank you"], ["বই", "book"], ["বাড়ি", "house"], ["পানি", "water"], ["বন্ধু", "friend"], ["স্কুল", "school"], ["খাওয়া", "to eat"]],
     urdu: [["سلام", "hello"], ["شکریہ", "thank you"], ["کتاب", "book"], ["گھر", "house"], ["پانی", "water"], ["دوست", "friend"], ["اسکول", "school"], ["کھانا", "to eat"]],
     persian: [["سلام", "hello"], ["ممنون", "thank you"], ["کتاب", "book"], ["خانه", "house"], ["آب", "water"], ["دوست", "friend"], ["مدرسه", "school"], ["خوردن", "to eat"]],
@@ -255,6 +255,7 @@
     if (/finance|financial|business/.test(text)) return "finance";
     if (/research methods|research/.test(text) && !/research science/.test(text)) return "research";
     if (/cyber|network|computer|programming|algorithm|coding/.test(text)) return "cs";
+    if (/literature/.test(nameText)) return "concept";
     if (/korean|russian|italian|hebrew|spanish|french|german|portuguese|hindi|chinese|mandarin|japanese|arabic|latin/.test(nameText)) return "language";
     if (/art|music|theater|theatre|film|drawing|design/.test(text)) return "arts";
     if (/physics/.test(text)) return "physics";
@@ -598,9 +599,11 @@
     } else if (domain === "cs") {
       draft = csQuestion(random, index);
     } else if (domain === "language") {
-      const key = Object.keys(LANG_WORDS).find(function (language) {
-        return subject.id.indexOf(language) >= 0 || subject.title.toLowerCase().indexOf(language) >= 0;
-      });
+      const key = Object.keys(LANG_WORDS)
+        .filter(function (language) {
+          return subject.id.indexOf(language) >= 0 || subject.title.toLowerCase().indexOf(language) >= 0;
+        })
+        .sort(function (a, b) { return b.length - a.length; })[0];
       const words = key ? LANG_WORDS[key] : null;
       if (!words) {
         draft = conceptQuestion(subject, index);

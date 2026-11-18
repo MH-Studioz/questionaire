@@ -2,8 +2,7 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // One private progress record per authenticated user, including anonymous
-    // users until they upgrade to Google.
+    // One private progress record per authenticated email/password or Google user.
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
