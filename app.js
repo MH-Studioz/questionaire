@@ -18,6 +18,7 @@
      -------------------------------------------------------------------------- */
 
   const STORAGE_KEY = "questionaire.progress.v1";
+  const ACCOUNTS_KEY = "questionaire.accounts.v1";
   const THEME_KEY = "questionaire.theme";
   const THEMES = ["light", "dark", "oled"];
   const THEME_COLORS = { light: "#f2eee4", dark: "#14120e", oled: "#000000" };
@@ -187,6 +188,10 @@
   let searchDebounce = null;
   let toastTimer = null;
 
+  let accountStore = { version: 1, activeId: null, accounts: [] };
+  let activeAccount = null;
+  let storageKey = STORAGE_KEY;
+
   let cloud = null;
   let cloudState = { configured: false, status: "unconfigured", user: null, error: null };
   let cloudUid = null;
@@ -212,6 +217,62 @@
   }
 
   let progress = defaultProgress();
+
+  function readAccountStore() {
+    try {
+      const value = JSON.parse(window.localStorage.getItem(ACCOUNTS_KEY) || "null");
+      if (!value || !Array.isArray(value.accounts)) return { version: 1, activeId: null, accounts: [] };
+      value.accounts = value.accounts.filter(function (account) {
+        return account && typeof account.id === "string" && typeof account.name === "string";
+      });
+      return value;
+    } catch (error) {
+      return { version: 1, activeId: null, accounts: [] };
+    }
+  }
+
+  function persistAccountStore() {
+    try {
+      window.localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accountStore));
+    } catch (error) {
+      /* The signed-in profile remains in memory if storage is unavailable. */
+    }
+  }
+
+  function accountStorageKey(id) {
+    return STORAGE_KEY + ".account." + id;
+  }
+
+  function findAccount(id) {
+    return accountStore.accounts.find(function (account) { return account.id === id; }) || null;
+  }
+
+  function hasProgressData(value) {
+    if (!value || typeof value !== "object") return false;
+    return Boolean(
+      (value.answered && Object.keys(value.answered).length) ||
+      Number(value.xp) ||
+      Number(value.streak) ||
+      (Array.isArray(value.bookmarks) && value.bookmarks.length) ||
+      (Array.isArray(value.mistakes) && value.mistakes.length)
+    );
+  }
+
+  function initialiseAccounts() {
+    accountStore = readAccountStore();
+    activeAccount = accountStore.activeId ? findAccount(accountStore.activeId) : null;
+    if (!activeAccount && accountStore.activeId) accountStore.activeId = null;
+    storageKey = activeAccount ? accountStorageKey(activeAccount.id) : STORAGE_KEY;
+  }
+
+  function storedProgress(key) {
+    try {
+      const value = JSON.parse(window.localStorage.getItem(key) || "null");
+      return value && typeof value === "object" ? value : null;
+    } catch (error) {
+      return null;
+    }
+  }
 
   function mergeProgress(local, remote) {
     const left = Object.assign(defaultProgress(), local && typeof local === "object" ? local : {});
@@ -249,7 +310,7 @@
 
   function persistLocal() {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+      window.localStorage.setItem(storageKey, JSON.stringify(progress));
     } catch (error) {
       /* Progress remains in memory if storage is unavailable. */
     }
@@ -267,12 +328,7 @@
   }
 
   function loadProgress() {
-    let stored = null;
-    try {
-      stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
-    } catch (error) {
-      stored = null;
-    }
+    const stored = storedProgress(storageKey);
     const merged = Object.assign(defaultProgress(), stored && typeof stored === "object" ? stored : {});
     if (!merged.answered || typeof merged.answered !== "object") merged.answered = {};
     if (!Array.isArray(merged.bookmarks)) merged.bookmarks = [];
@@ -289,6 +345,106 @@
   function saveProgress() {
     persistLocal();
     scheduleCloudSave();
+  }
+
+  function reloadProgress() {
+    progress = defaultProgress();
+    loadProgress();
+    state.cards = {};
+    exam = null;
+    pendingTarget = null;
+    normalizeStreak();
+  }
+
+  function createLocalAccount(name, email) {
+    const cleanName = String(name || "").trim().slice(0, 40);
+    const cleanEmail = String(email || "").trim().slice(0, 120);
+    if (!cleanName) {
+      toast("Add a display name first.", "is-warn");
+      return false;
+    }
+    const existing = accountStore.accounts.find(function (account) {
+      return account.name.toLowerCase() === cleanName.toLowerCase();
+    });
+    if (existing) {
+      switchLocalAccount(existing.id);
+      return false;
+    }
+
+    const wasGuest = !activeAccount;
+    persistLocal();
+    const guestCopy = wasGuest && !accountStore.accounts.length ? storedProgress(STORAGE_KEY) : null;
+    const account = {
+      id: "local-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7),
+      name: cleanName,
+      email: cleanEmail,
+      createdAt: new Date().toISOString()
+    };
+    const nextKey = accountStorageKey(account.id);
+    if (guestCopy && hasProgressData(guestCopy)) {
+      try {
+        window.localStorage.setItem(nextKey, JSON.stringify(guestCopy));
+      } catch (error) {
+        /* The account still starts with the in-memory record. */
+      }
+    }
+    accountStore.accounts.push(account);
+    accountStore.activeId = account.id;
+    activeAccount = account;
+    storageKey = nextKey;
+    persistAccountStore();
+    reloadProgress();
+    paint();
+    toast("Signed in as " + account.name + " on this device.");
+    return true;
+  }
+
+  function switchLocalAccount(id) {
+    const account = findAccount(id);
+    if (!account || (activeAccount && activeAccount.id === id)) return;
+    persistLocal();
+    activeAccount = account;
+    accountStore.activeId = account.id;
+    storageKey = accountStorageKey(account.id);
+    persistAccountStore();
+    reloadProgress();
+    paint();
+    toast("Signed in as " + account.name + ".");
+  }
+
+  function signOutLocal() {
+    if (!activeAccount) return;
+    persistLocal();
+    const name = activeAccount.name;
+    activeAccount = null;
+    accountStore.activeId = null;
+    storageKey = STORAGE_KEY;
+    persistAccountStore();
+    reloadProgress();
+    paint();
+    toast("Signed out of " + name + ". Guest progress restored.");
+  }
+
+  function deleteLocalAccount(id) {
+    const account = findAccount(id);
+    if (!account) return;
+    if (!window.confirm("Delete the local profile \"" + account.name + "\" and its progress on this device?")) return;
+    const wasActive = activeAccount && activeAccount.id === id;
+    accountStore.accounts = accountStore.accounts.filter(function (item) { return item.id !== id; });
+    if (accountStore.activeId === id) accountStore.activeId = null;
+    try {
+      window.localStorage.removeItem(accountStorageKey(id));
+    } catch (error) {
+      /* ignore */
+    }
+    if (wasActive) {
+      activeAccount = null;
+      storageKey = STORAGE_KEY;
+      reloadProgress();
+    }
+    persistAccountStore();
+    paint();
+    toast("Local profile deleted.", "is-warn");
   }
 
   function dateKey(date) {
@@ -543,68 +699,32 @@
      -------------------------------------------------------------------------- */
 
   function accountCardHTML() {
-    const user = cloudState.user;
-    const configured = Boolean(cloudState.configured);
-    const busy = cloudState.operation === "google" || cloudState.operation === "anonymous" || cloudState.status === "loading";
-
-    if (!configured) {
-      return (
-        '<div class="account-summary">' +
-        '<span class="account-avatar account-avatar-guest">G</span>' +
-        '<div class="account-copy"><strong>Guest record</strong><small>Cloud sync is not configured yet.</small></div>' +
-        "</div>" +
-        '<div class="account-actions"><a class="account-link" href="#/settings">Setup guide<i data-lucide="arrow-right"></i></a></div>'
-      );
-    }
-
-    if (cloudState.status === "error") {
-      return (
-        '<div class="account-summary">' +
-        '<span class="account-avatar account-avatar-error">!</span>' +
-        '<div class="account-copy"><strong>Sync needs attention</strong><small>' + esc(cloudState.error || "Cloud sync could not connect.") + "</small></div>" +
-        "</div>" +
-        '<div class="account-actions"><button type="button" class="account-btn" data-action="google-signin"' + (busy ? " disabled" : "") + '><i data-lucide="log-in"></i>Try Google again</button></div>'
-      );
-    }
-
-    if (cloudState.status === "loading" || cloudState.status === "signing-in") {
-      return (
-        '<div class="account-summary">' +
-        '<span class="account-avatar">…</span>' +
-        '<div class="account-copy"><strong>' + (busy ? "Connecting…" : "Opening cloud record…") + '</strong><small>Local progress is safe.</small></div>' +
-        "</div>"
-      );
-    }
-
-    if (user && !user.isAnonymous) {
-      const name = user.displayName || user.email || "Google account";
+    if (activeAccount) {
+      const name = activeAccount.name;
+      const detail = activeAccount.email || "Device profile";
+      const syncNote =
+        cloudState.user && !cloudState.user.isAnonymous
+          ? "Signed in locally · Google cloud sync is on."
+          : cloudState.configured
+          ? "Signed in locally · Google sync is optional."
+          : "Signed in locally. Cloud sync is not configured.";
       return (
         '<div class="account-summary">' +
         '<span class="account-avatar">' + esc(name.charAt(0).toUpperCase()) + "</span>" +
-        '<div class="account-copy"><strong>' + esc(name) + '</strong><small>' + esc(user.email || "Signed in with Google") + "</small></div>" +
+        '<div class="account-copy"><strong>' + esc(name) + "</strong><small>" + esc(detail) + "</small></div>" +
         "</div>" +
-        '<div class="account-actions"><button type="button" class="account-btn account-btn-quiet" data-action="cloud-signout"><i data-lucide="log-out"></i>Sign out</button></div>' +
-        '<p class="account-note">Progress is mirrored to your private Firestore record.</p>'
-      );
-    }
-
-    if (user && user.isAnonymous) {
-      return (
-        '<div class="account-summary">' +
-        '<span class="account-avatar account-avatar-guest">G</span>' +
-        '<div class="account-copy"><strong>Guest cloud record</strong><small>Anonymous account · sync is ready.</small></div>' +
-        "</div>" +
-        '<div class="account-actions"><button type="button" class="account-btn" data-action="google-signin"' + (busy ? " disabled" : "") + '><i data-lucide="chrome"></i>Continue with Google</button></div>' +
-        '<p class="account-note">Linking keeps this record instead of starting over.</p>'
+        '<div class="account-actions"><a class="account-btn" href="#/login"><i data-lucide="user-round"></i>Manage profile</a></div>' +
+        '<p class="account-note">' + esc(syncNote) + "</p>"
       );
     }
 
     return (
       '<div class="account-summary">' +
       '<span class="account-avatar account-avatar-guest">G</span>' +
-      '<div class="account-copy"><strong>Sync across devices</strong><small>Guest progress stays local until you sign in.</small></div>' +
+      '<div class="account-copy"><strong>Guest record</strong><small>Sign in to keep separate profiles on this device.</small></div>' +
       "</div>" +
-      '<div class="account-actions"><button type="button" class="account-btn" data-action="google-signin"' + (busy ? " disabled" : "") + '><i data-lucide="chrome"></i>Continue with Google</button></div>'
+      '<div class="account-actions"><a class="account-btn" href="#/login"><i data-lucide="log-in"></i>Sign in</a></div>' +
+      '<p class="account-note">' + (cloudState.configured ? "Google sign-in is also available." : "Google cloud sync is not configured yet.") + "</p>"
     );
   }
 
@@ -613,11 +733,9 @@
     if (panel) panel.innerHTML = accountCardHTML();
     const note = document.getElementById("sidebar-note");
     if (note) {
-      note.textContent = !cloudState.configured
-        ? "Local record. No account, no sync."
-        : cloudState.user && !cloudState.user.isAnonymous
-        ? "Synced to your Google account."
-        : "Guest by default. Google sync is optional.";
+      note.textContent = activeAccount
+        ? "Local profile · device only" + (cloudState.user && !cloudState.user.isAnonymous ? " · Google synced" : "")
+        : "Guest record · sign in for profiles";
     }
   }
 
@@ -646,7 +764,7 @@
   function handleCloudState(snapshot) {
     cloudState = snapshot || { configured: false, status: "unconfigured", user: null, error: null };
     updateAccountUI();
-    if (state.routeKey && state.route.name === "settings") paint();
+    if (state.routeKey && (state.route.name === "settings" || state.route.name === "login")) paint();
     if (cloudState.status === "signed-in" && cloudState.user && cloudState.user.uid !== cloudUid) {
       hydrateCloud(cloudState.user);
     }
@@ -676,6 +794,23 @@
         /* The cloud state carries the friendly error. */
       });
     }
+  }
+
+  function runAccountAction(action, trigger) {
+    if (action === "local-signout") {
+      signOutLocal();
+      return;
+    }
+    if (action === "local-switch") {
+      switchLocalAccount(trigger.getAttribute("data-account"));
+      if (activeAccount && state.route.name === "login") go("#/dashboard");
+      return;
+    }
+    if (action === "local-delete") {
+      deleteLocalAccount(trigger.getAttribute("data-account"));
+      return;
+    }
+    runCloudAction(action);
   }
 
   function updateChrome() {
@@ -773,6 +908,7 @@
     }
     if (parts[0] === "review" || parts[0] === "saved") return { name: "review" };
     if (parts[0] === "settings") return { name: "settings" };
+    if (parts[0] === "login") return { name: "login" };
     return { name: "dashboard" };
   }
 
@@ -821,6 +957,8 @@
         ? "Questionaire — Review queue"
         : route.name === "settings"
         ? "Questionaire — Settings"
+        : route.name === "login"
+        ? "Questionaire — Sign in"
         : "Questionaire — A Study Annual";
 
     paint();
@@ -860,6 +998,9 @@
         break;
       case "settings":
         renderSettings();
+        break;
+      case "login":
+        renderLogin();
         break;
       default:
         renderDashboard();
@@ -1689,6 +1830,80 @@
   }
 
   /* --------------------------------------------------------------------------
+     Sign in
+     -------------------------------------------------------------------------- */
+
+  function loginProfileRow(account) {
+    const active = activeAccount && activeAccount.id === account.id;
+    const detail = account.email || "Device profile";
+    return (
+      '<div class="profile-row' + (active ? " active" : "") + '">' +
+      '<button type="button" class="profile-main" data-action="local-switch" data-account="' + esc(account.id) + '">' +
+      '<span class="account-avatar">' + esc(account.name.charAt(0).toUpperCase()) + "</span>" +
+      '<span class="account-copy"><strong>' + esc(account.name) + "</strong><small>" + esc(detail) + (active ? " · active" : "") + "</small></span>" +
+      "</button>" +
+      '<button type="button" class="profile-delete" data-action="local-delete" data-account="' + esc(account.id) + '" aria-label="Delete ' + esc(account.name) + '"><i data-lucide="trash-2"></i></button>' +
+      "</div>"
+    );
+  }
+
+  function renderLogin() {
+    const profiles = accountStore.accounts.map(loginProfileRow).join("");
+    const googleUser = cloudState.user && !cloudState.user.isAnonymous ? cloudState.user : null;
+    const busy = cloudState.operation === "google" || cloudState.status === "loading" || cloudState.status === "signing-in";
+    const activeName = activeAccount ? activeAccount.name : "";
+
+    const localCard =
+      '<section class="settings-card card login-card">' +
+      "<h2>Local profile</h2>" +
+      (activeAccount
+        ? '<div class="account-summary login-current">' +
+          '<span class="account-avatar">' + esc(activeName.charAt(0).toUpperCase()) + "</span>" +
+          '<div class="account-copy"><strong>' + esc(activeName) + '</strong><small>' + esc(activeAccount.email || "Signed in on this device") + "</small></div>" +
+          "</div>" +
+          '<div class="account-actions"><button type="button" class="account-btn account-btn-quiet" data-action="local-signout"><i data-lucide="log-out"></i>Sign out to guest</button></div>'
+        : '<p>Create a profile on this browser. Each profile has its own progress, XP, streak, bookmarks and mistakes.</p>') +
+      '<form class="login-form" data-form="local-login">' +
+      '<label>Display name<input id="login-name" name="name" maxlength="40" autocomplete="nickname" placeholder="e.g. Alex" required /></label>' +
+      '<label>Email <span>optional</span><input id="login-email" name="email" type="email" maxlength="120" autocomplete="email" placeholder="you@example.com" /></label>' +
+      '<button class="btn btn-primary" type="submit"><i data-lucide="log-in"></i>' + (activeAccount ? "Add another profile" : "Sign in on this device") + "</button>" +
+      "</form>" +
+      '<p class="account-note">Local profiles are stored in this browser and are <strong>not password protected</strong>. Use Google sync if you need a real cross-device account.</p>' +
+      "</section>";
+
+    const profileCard = accountStore.accounts.length
+      ? '<section class="settings-card card login-card"><h2>Saved profiles</h2><div class="profile-list">' + profiles + "</div></section>"
+      : "";
+
+    const googleCard =
+      '<section class="settings-card card login-card">' +
+      "<h2>Google cloud sync</h2>" +
+      (googleUser
+        ? '<div class="account-summary">' +
+          '<span class="account-avatar">' + esc((googleUser.displayName || googleUser.email || "G").charAt(0).toUpperCase()) + "</span>" +
+          '<div class="account-copy"><strong>' + esc(googleUser.displayName || googleUser.email || "Google account") + '</strong><small>' + esc(googleUser.email || "Signed in with Google") + "</small></div>" +
+          "</div>" +
+          '<div class="account-actions"><button type="button" class="account-btn account-btn-quiet" data-action="cloud-signout"><i data-lucide="log-out"></i>Disconnect Google</button></div>' +
+          '<p class="account-note">Progress is mirrored to your private Firestore record.</p>'
+        : cloudState.configured
+        ? '<p>Continue with Google to mirror this device\u2019s progress to your private cloud record.</p>' +
+          '<div class="account-actions"><button type="button" class="account-btn" data-action="google-signin"' + (busy ? " disabled" : "") + '><i data-lucide="chrome"></i>' + (busy ? "Connecting…" : "Continue with Google") + "</button></div>" +
+          (cloudState.error ? '<p class="account-note">' + esc(cloudState.error) + "</p>" : "")
+        : '<p>Cloud sync is not configured on this deployment.</p><p class="account-note">Add the public Firebase keys to <code>firebase-config.js</code> to enable Google sign-in and multi-device sync.</p><div class="account-actions"><a class="account-btn" href="#/settings"><i data-lucide="settings"></i>Open setup guide</a></div>') +
+      "</section>";
+
+    view.innerHTML =
+      '<div class="view-inner">' +
+      '<div class="page-head">' +
+      '<div><span class="eyebrow">Account</span><h1>Sign in</h1><p>Use a local profile on this device, or connect Google when cloud sync is configured.</p></div>' +
+      '<a class="btn btn-ghost" href="#/dashboard"><i data-lucide="layout-dashboard"></i>Dashboard</a>' +
+      "</div>" +
+      '<div class="login-grid">' + localCard + profileCard + googleCard + "</div>" +
+      '<p class="account-note login-footnote">Local profiles stay in this browser. Clearing site data removes them. Google sync is the only cross-device option.</p>' +
+      "</div>";
+  }
+
+  /* --------------------------------------------------------------------------
      Settings
      -------------------------------------------------------------------------- */
 
@@ -1711,15 +1926,16 @@
       '<div class="view-inner">' +
       '<div class="page-head">' +
       "<div><span class=\"eyebrow\">Workspace</span><h1>Settings &amp; progress</h1>" +
-      "<p>Guest progress lives in this browser. Sign in with Google to mirror it when cloud sync is configured.</p></div>" +
+      "<p>Separate local profiles on this browser. Optional Google sync mirrors progress across devices.</p></div>" +
       '<a class="btn btn-ghost" href="#/dashboard"><i data-lucide="layout-dashboard"></i>Dashboard</a>' +
       "</div>" +
       '<div class="settings-grid">' +
 
       '<section class="settings-card card">' +
       "<h2>Account &amp; sync</h2>" +
-      '<p>Anonymous by default. Continue with Google to keep this record across devices.</p>' +
+      '<p>Local profiles keep separate progress on this browser. Google sync is optional and needs Firebase.</p>' +
       '<div class="account-panel">' + accountCardHTML() + "</div>" +
+      '<p style="margin-top:10px"><a class="section-link" href="#/login"><i data-lucide="log-in"></i>Manage sign-in</a></p>' +
       (cloudState.configured ? "" : '<p class="account-note">Paste <code>apiKey</code>, <code>authDomain</code>, <code>projectId</code> and <code>appId</code> into <code>firebase-config.js</code>. The owner-only Firestore rules live in <code>firestore.rules</code>.</p>') +
       "</section>" +
 
@@ -1974,8 +2190,8 @@
       return;
     }
 
-    if (action === "google-signin" || action === "cloud-signout") {
-      runCloudAction(action);
+    if (action.indexOf("local-") === 0 || action === "google-signin" || action === "cloud-signout") {
+      runAccountAction(action, trigger);
       return;
     }
 
@@ -2122,7 +2338,7 @@
       exam = null;
       pendingTarget = null;
       try {
-        window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(storageKey);
       } catch (error) {
         /* ignore */
       }
@@ -2130,6 +2346,16 @@
       paint();
       toast("Progress reset. Fresh notebook, same lab.", "is-warn");
     }
+  });
+
+  view.addEventListener("submit", function (event) {
+    const form = event.target.closest('form[data-form="local-login"]');
+    if (!form) return;
+    event.preventDefault();
+    const name = form.elements.name ? form.elements.name.value : "";
+    const email = form.elements.email ? form.elements.email.value : "";
+    createLocalAccount(name, email);
+    if (activeAccount) go("#/dashboard");
   });
 
   sidebarNav.addEventListener("click", function (event) {
@@ -2158,7 +2384,7 @@
     accountPanel.addEventListener("click", function (event) {
       const trigger = event.target.closest("[data-action]");
       if (!trigger) return;
-      runCloudAction(trigger.getAttribute("data-action"));
+      runAccountAction(trigger.getAttribute("data-action"), trigger);
     });
   }
 
@@ -2231,6 +2457,7 @@
       return;
     }
     buildIndex();
+    initialiseAccounts();
     loadProgress();
     buildSearchIndex();
     attachCloud(window.QuestionaireCloud);

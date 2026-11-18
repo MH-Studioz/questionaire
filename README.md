@@ -1,6 +1,6 @@
 # Questionaire
 
-A static study annual for the browser: every current AP course, SAT/ACT/PSAT/GED/GRE practice, plus question banks, cheat sheets, memory notes and video lessons across maths, sciences, humanities and languages. Progress is stored locally by default; optional Google sync mirrors it to a private Firestore record when the public Firebase config is filled in.
+A static study annual for the browser: every current AP course, SAT/ACT/PSAT/GED/GRE practice, plus question banks, cheat sheets, memory notes and video lessons across maths, sciences, humanities and languages. Progress is stored locally by default, with optional device-local profiles and Google sync when the public Firebase config is filled in.
 
 **Live:** https://mh-studioz.github.io/questionaire/
 
@@ -74,9 +74,21 @@ To add a subject, copy a block in `database.js` or `new-subjects.js`, or add a c
 
 The home page starts with search, a progress summary, recommended subjects, the AP shelf and the SAT/ACT/PSAT/GED/GRE shelf. **Browse all subjects** opens the full catalogue with section filters; the AP shelf adds subject-area filters. On phones, the bottom bar keeps Home, Browse, AP, Review and Search one tap away. Large subject banks render 20 cards at a time with a **Load 20 more** control, and every Exam tab samples a timed section instead of trying to run all 1,000 questions.
 
-## Accounts and cloud sync
+## Accounts, profiles and cloud sync
 
-Guest progress lives in `localStorage` under `questionaire.progress.v1`. The Firebase client and merge logic are implemented but **dormant until the public web config is filled in**. With the config blank, the sidebar and Settings show **Guest record / Cloud sync is not configured yet** and guest mode works normally.
+**Local profiles**
+
+Open **Settings → Manage sign-in** or the sidebar account panel to reach `#/login`. A local profile stores its own progress, XP, streak, bookmarks and mistakes on this device. It is **not password protected** and is not a security boundary; anyone using this browser can open it.
+
+- Profiles are listed in `questionaire.accounts.v1`.
+- Guest progress stays under `questionaire.progress.v1`.
+- Each profile stores progress under `questionaire.progress.v1.account.<id>`.
+- The first profile adopts the current guest record; later profiles start empty.
+- Signing out restores the guest record. Switching profiles swaps in that profile's record, and deleting a profile removes its stored progress.
+
+**Guest progress and Google sync**
+
+Guest progress lives in `localStorage` under `questionaire.progress.v1`. The Firebase client and merge logic are implemented but **dormant until the public web config is filled in**. With the config blank, the sidebar shows **Guest record**, the login page explains that Google sync is unavailable, and guest/local-profile mode works normally.
 
 **How guest progress survives sign-in**
 
@@ -125,4 +137,4 @@ window.FIREBASE_CONFIG = {
 These four values are public and safe to commit. Do **not** add a service-account key or client secret.
 5. Deploy the rules with `firebase deploy --only firestore:rules`, then test the popup on the live origin. The full Google popup → Firestore write → reload → merge flow cannot be verified until the config and OAuth domain exist.
 
-The live site intentionally does not show a broken sign-in button before step 4. The account panel switches to **Continue with Google** as soon as `firebase-config.js` contains all four keys.
+The live site does not show a broken sign-in button before step 4. The login page explains that Google sync is unconfigured, and the Google button appears as soon as `firebase-config.js` contains all four keys.
