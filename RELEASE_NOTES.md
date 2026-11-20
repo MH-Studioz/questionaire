@@ -105,6 +105,9 @@ Each deck is a 20-word starter set, so a 1,000-question vocabulary bank repeats 
 - Fixed concept prompts that repeated identical wording with different answers (the term is now named in the question), and made the paired-term form ask the reverse pair instead of a third copy of the same prompt.
 - Added a cloud-hydration guard so signing out during an in-flight load cannot write cloud progress into the local fallback.
 - Added a setup-guide path that works before login.
+- Arts subjects no longer share one pool. Music courses draw music-theory facts, visual-art courses draw art facts, and theatre, film and dance have their own set, so the "lightness or darkness of a colour" question can no longer turn up in AP Music Theory.
+- Subject classification now matches whole words: “particle” no longer sends Quantum Mechanics into the art pool, and “metaphysics” no longer sends Philosophy into the physics pool.
+- Philosophy has its own bank (validity, soundness, ethics, epistemology, fallacies) instead of borrowed physics or grammar questions.
 - Updated the README, release notes and cache versions.
 
 ## Verification
@@ -112,7 +115,7 @@ Each deck is a 20-word starter set, so a 1,000-question vocabulary bank repeats 
 Verified in the browser and static checks:
 
 - 443 subjects, 443 unique ids, 11 categories.
-- Every subject reports a 1,000-question target.
+- Every subject reports its target: 1,000 questions, 2,000 for AP courses.
 - All subjects have study cards and tips.
 - 47 language subjects; 46 vocabulary decks; all 1,000-question banks materialize.
 - All 46 vocabulary subjects resolve a deck; English Language resolves none, as designed.
@@ -122,6 +125,7 @@ Verified in the browser and static checks:
 - Guest mode: one-click session created from the sign-in page, progress written to its own local key, sign-out returns to the gate.
 - Learn tab renders for a language, an AP course and calculus, with deep dives, worked steps, video blocks and the AP language-deck link.
 - AP banks now report a 2,000-question target and materialise without malformed options.
+- Discipline routing checked in the browser: AP Music Theory draws music facts only (zero art prompts in 2,000), AP Art History draws art facts only, AP Music Theory's Learn topics are musical, and Philosophy, Quantum Mechanics and the theatre subjects no longer borrow another field's questions.
 - All eight AP world-language banks checked: zero filler options, zero beginner-vocabulary questions, 12 distinct prompts each.
 - Word bank, Listen fallback, mark-as-known, flashcards reveal/advance/summary and the word-bank search jump were exercised in the browser at 390px and desktop width.
 - Ancient Greek now uses Ancient Greek vocabulary; modern Greek remains separate.
@@ -153,7 +157,7 @@ These require a real Firebase project and public `firebase-config.js` values.
 4. Deploy `firestore.rules` with `firebase deploy --only firestore:rules`.
 5. Test sign-up, sign-in, reset, Google popup, save, reload and merge on the live origin.
 
-Asset query strings were bumped to `0.6.2-alpha` so browsers pick up guest mode, learning mode and the deeper AP banks; the release itself is still **0.6-alpha**.
+Asset query strings were bumped to `0.6.2-alpha` so browsers pick up guest mode, learning mode and the deeper AP banks, and `subject-banks.js` to `0.6.3-alpha` for the discipline-pool fix; the release itself is still **0.6-alpha**.
 
 Existing offline profiles keep their ids. Existing guest progress is migrated once. Old guest progress keys are removed after the first identity is created. Vocabulary mastery is merged on sign-in like any other progress.
 

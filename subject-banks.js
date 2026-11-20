@@ -104,15 +104,90 @@
     ["What is a fresco?", "Painting on wet plaster", ["Painting on canvas", "A carved relief", "A mosaic"], "Pigment is applied to wet lime plaster and bonds as it dries."],
     ["Which artist painted the Mona Lisa?", "Leonardo da Vinci", ["Michelangelo", "Raphael", "Caravaggio"], "Leonardo painted the portrait in the early sixteenth century."],
     ["What is the primary purpose of a museum catalogue?", "Document and interpret a collection", ["Sell tickets", "Replace the artworks", "Train guards"], "Catalogues record provenance, context and interpretation."],
-    ["Which musical texture describes a single melodic line?", "Monophony", ["Polyphony", "Homophony", "Heterophony"], "Monophony has one melodic line without accompaniment."],
-    ["What does 'forte' mean in music?", "Loud", ["Soft", "Fast", "Slow"], "Forte is a dynamic marking meaning loud."],
-    ["Which interval spans eight notes?", "Octave", ["Fifth", "Third", "Seventh"], "An octave spans eight diatonic notes."],
     ["What is the vanishing point?", "The point where parallel lines appear to converge in perspective", ["The centre of a canvas", "The darkest part of a painting", "The edge of a frame"], "Linear perspective uses vanishing points to create depth."],
     ["Which art movement emphasized spontaneous gesture and the unconscious?", "Abstract Expressionism", ["Neoclassicism", "Impressionism", "Baroque"], "Abstract Expressionism emerged in mid-twentieth-century New York."],
-    ["What is a motif in music?", "A short recurring musical idea", ["A type of instrument", "A concert hall", "A tuning system"], "Motifs are repeated and developed."],
     ["Which medium uses melted wax and pigment?", "Encaustic", ["Watercolour", "Gouache", "Tempera"], "Encaustic paints use beeswax as a binder."],
     ["What is the rule of thirds used for?", "Composition", ["Colour mixing", "Perspective", "Printmaking"], "The rule of thirds places key elements near intersection points."]
-  ].map(function (fact) { return normaliseFact(fact, ["arts"]); });
+  ].map(function (fact) { return normaliseFact(fact, ["visual arts"]); });
+
+  /* Music subjects get their own pool: a colour-value question inside AP Music
+     Theory is a bug, not a hard question. */
+  const MUSIC = [
+    ["How many semitones are in an octave?", "Twelve", ["Eight", "Seven", "Ten"], "Equal temperament divides the octave into twelve semitones."],
+    ["Which clef do most high voices and instruments read?", "Treble clef", ["Bass clef", "Alto clef", "Tenor clef"], "The treble clef curls around the G above middle C."],
+    ["How many sharps does D major have?", "Two", ["One", "Three", "Four"], "D major uses F sharp and C sharp."],
+    ["What is the relative minor of C major?", "A minor", ["E minor", "G minor", "D minor"], "Relative minors share a key signature."],
+    ["Which cadence moves from V to I?", "Authentic cadence", ["Plagal cadence", "Deceptive cadence", "Half cadence"], "A V-I close is an authentic cadence."],
+    ["Which cadence moves from IV to I?", "Plagal cadence", ["Authentic cadence", "Deceptive cadence", "Half cadence"], "The IV-I close is the plagal, or amen, cadence."],
+    ["What is the leading tone in C major?", "B", ["A", "D", "G"], "Scale degree seven sits a semitone below the tonic."],
+    ["What is the dominant chord in G major?", "D major", ["C major", "A minor", "E minor"], "The dominant is built on the fifth degree, D."],
+    ["What does a key signature tell a performer?", "Which sharps or flats apply throughout the piece", ["The tempo of the piece", "The metre of the piece", "The instrumentation of the piece"], "It fixes the accidentals of the tonic."],
+    ["What is a triad?", "A chord of three notes stacked in thirds", ["A rhythm of three beats", "A three-part form", "A scale of three notes"], "Root, third and fifth make the triad."],
+    ["What is it called when the third of a chord is in the bass?", "First inversion", ["Root position", "Second inversion", "Third inversion"], "First inversion puts the third in the lowest voice."],
+    ["What is counterpoint?", "Two or more independent melodic lines sounding together", ["A single unaccompanied melody", "Chords played in block rhythms", "A repeated bass pattern"], "Counterpoint sets melodic lines against one another."],
+    ["Which interval is the tritone?", "Augmented fourth", ["Perfect fourth", "Minor third", "Major sixth"], "Six semitones span an augmented fourth or diminished fifth."],
+    ["What does 'piano' mean as a dynamic marking?", "Soft", ["Loud", "Fast", "Detached"], "Piano (p) marks a soft dynamic."],
+    ["What does 'allegro' indicate?", "A fast tempo", ["A slow tempo", "A moderate tempo", "A gradual slowdown"], "Allegro is a quick, lively tempo."],
+    ["What is syncopation?", "Emphasis on a weak beat or between beats", ["A steady accent on every beat", "A gradual change of key", "A repeated rhythmic pattern"], "Syncopation displaces the expected accent."],
+    ["What is timbre?", "The tone colour of an instrument or voice", ["The loudness of a note", "The length of a note", "The pitch of a note"], "Timbre separates a flute from a violin on the same note."],
+    ["Which form has an exposition, development and recapitulation?", "Sonata form", ["Rondo form", "Strophic form", "Through-composed form"], "Sonata form organises a movement around those sections."],
+    ["What is modulation?", "A change of key within a piece", ["A change of tempo", "A change of metre", "A change of instrumentation"], "Modulation moves the tonal centre."],
+    ["What is an ostinato?", "A short repeated musical pattern", ["A solo cadenza", "A sudden dynamic change", "A type of cadence"], "Ostinati repeat beneath changing material."],
+    ["What does staccato indicate?", "Notes played short and detached", ["Notes held for their full value", "Notes played louder", "Notes played slower"], "Staccato shortens articulation."],
+    ["What is the circle of fifths used for?", "Showing the relationships between keys", ["Counting beats in a bar", "Tuning a drum", "Writing lyrics"], "Adjacent keys on the circle are a fifth apart."],
+    ["What is a hemiola?", "The feel of two beats against three", ["A three-part canon", "A perfect cadence", "A slow trill"], "Hemiola shifts the perceived grouping."],
+    ["What does 'a cappella' mean?", "Singing without instrumental accompaniment", ["Singing with an orchestra", "Singing in unison only", "Singing in a round"], "A cappella is unaccompanied vocal music."],
+    ["Which texture sets a melody against chordal accompaniment?", "Homophony", ["Polyphony", "Monophony", "Heterophony"], "Homophony moves the parts together under a melody."],
+    ["What is the subdominant chord in C major?", "F major", ["G major", "A minor", "D minor"], "The subdominant is built on the fourth degree, F."],
+    ["What is transposition?", "Shifting music to a different key", ["Changing the tempo", "Changing the metre", "Changing the instrumentation"], "Transposition keeps intervals but changes pitch level."],
+    ["What is a sequence in music?", "A motif repeated at a different pitch level", ["A chord progression that ends a phrase", "A change of instrumentation", "A type of ornament"], "Sequences repeat a pattern higher or lower."],
+    ["Which term describes a melody that moves mostly by small steps?", "Conjunct motion", ["Disjunct motion", "Syncopation", "Ostinato"], "Conjunct motion moves stepwise."],
+    ["What is a fermata?", "A sign that holds a note longer than its written value", ["A sign to play softer", "A sign to repeat a section", "A sign to speed up"], "The performer sustains the note."],
+    ["What is a motif in music?", "A short recurring musical idea", ["A type of instrument", "A concert hall", "A tuning system"], "Motifs are repeated and developed."],
+    ["Which musical texture is a single unaccompanied melodic line?", "Monophony", ["Polyphony", "Homophony", "Heterophony"], "Monophony has one melodic line without accompaniment."],
+    ["What does 'forte' mean in music?", "Loud", ["Soft", "Fast", "Slow"], "Forte is a dynamic marking meaning loud."],
+    ["Which interval spans eight diatonic notes?", "Octave", ["Fifth", "Third", "Seventh"], "An octave spans eight letter names."]
+  ].map(function (fact) { return normaliseFact(fact, ["music theory"]); });
+
+  /* Philosophy is its own discipline; it used to fall into the physics pool
+     through the word "metaphysics" and then into the generic pool. */
+  const PHILOSOPHY = [
+    ["What is a valid argument?", "One whose conclusion follows from its premises", ["One whose premises are true", "One that persuades most people", "One with no premises"], "Validity concerns structure, not the truth of the premises."],
+    ["What is a sound argument?", "A valid argument with true premises", ["Any persuasive argument", "An argument with a false conclusion", "An argument from authority"], "Soundness adds truth to validity."],
+    ["What is the principle of utility in utilitarianism?", "Act to maximise overall happiness", ["Act only from duty", "Follow the golden mean", "Obey the sovereign"], "Bentham and Mill judge actions by their consequences."],
+    ["What is Kant's categorical imperative?", "Act only on maxims you could will as universal law", ["Maximise pleasure for the greatest number", "Seek the mean between extremes", "Obey the strongest power"], "Kant tests maxims for universalisability."],
+    ["What is virtue ethics centred on?", "The character of the agent", ["The consequences of acts", "The rules followed", "The social contract"], "Aristotle asks what a good person would do."],
+    ["What is the veil of ignorance used to justify?", "Fair principles of justice", ["Absolute monarchy", "Religious authority", "Free markets without rules"], "Rawls asks what principles people would choose without knowing their place."],
+    ["What does 'cogito, ergo sum' assert?", "Thinking proves the thinker exists", ["God guarantees knowledge", "The senses are reliable", "The mind is the brain"], "Descartes found one indubitable starting point."],
+    ["What is empiricism?", "Knowledge derives from experience", ["Knowledge derives from reason alone", "Knowledge is innate only", "Knowledge is impossible"], "Locke and Hume treat experience as the source of ideas."],
+    ["What is rationalism?", "Reason is the primary source of knowledge", ["Experience is the only source", "Custom explains belief", "All knowledge is relative"], "Descartes, Spinoza and Leibniz trusted reason."],
+    ["What is the problem of induction?", "Past observations do not logically guarantee future ones", ["Induction is always invalid", "Experiments cannot be repeated", "Theories cannot be tested"], "Hume noted that induction needs an unproven uniformity assumption."],
+    ["What is a straw man fallacy?", "Misrepresenting an opponent's position to refute it", ["Attacking a person instead of the argument", "Appealing to popularity", "Assuming the conclusion"], "It replaces the real claim with a weaker one."],
+    ["What is begging the question?", "Assuming the conclusion among the premises", ["Asking a rhetorical question", "Changing the subject", "Appealing to authority"], "The argument's premise already contains its conclusion."],
+    ["What is Occam's razor?", "Prefer the explanation with fewer assumptions", ["Prefer the newest explanation", "Prefer the most popular explanation", "Prefer the simplest conclusion to be true"], "It is a heuristic for theory choice, not proof."],
+    ["What is a social contract theory?", "Political authority derives from agreement among people", ["Authority derives from divine right", "Authority derives from force alone", "Authority derives from tradition alone"], "Hobbes, Locke and Rousseau argue from agreement."],
+    ["What is dualism in philosophy of mind?", "Mind and body are distinct kinds of thing", ["Only matter exists", "Only minds exist", "Mind is identical to behaviour"], "Descartes held a substance dualism."],
+    ["What is existentialism's central claim?", "People create meaning through choices in an absurd world", ["Meaning is fixed by nature", "Reason alone determines ethics", "History follows laws"], "Sartre argues existence precedes essence."]
+  ].map(function (fact) { return normaliseFact(fact, ["philosophy"]); });
+
+  const STAGE = [
+    ["What is blocking in theatre?", "The planned movement and positioning of actors", ["The order of the play's scenes", "The lighting design", "The rehearsal schedule"], "Blocking fixes where actors move and stand."],
+    ["What is a soliloquy?", "A speech revealing a character's thoughts while alone on stage", ["A conversation between two characters", "A song in a musical", "A stage direction"], "The character speaks their private thoughts aloud."],
+    ["What is dramatic irony?", "When the audience knows something a character does not", ["When a character lies to another character", "When the ending is happy", "When the play has no narrator"], "The gap between audience knowledge and character knowledge creates the effect."],
+    ["What is a thrust stage?", "A stage with the audience on three sides", ["A stage with a proscenium arch", "A stage in the round", "A raised platform at the back"], "A thrust projects into the auditorium."],
+    ["What is the fourth wall?", "The invisible boundary between performers and the audience", ["The back wall of the set", "The curtain line", "The lighting bar"], "Acknowledging the audience breaks the fourth wall."],
+    ["What is a cue in theatre?", "A signal for a line, action or technical change", ["A type of costume", "A seating area", "A rehearsal warm-up"], "Cues synchronise performance and crew."],
+    ["What does a dramaturg do?", "Researches script, context and production ideas", ["Operates the lighting desk", "Sells the tickets", "Builds the set"], "Dramaturgs support textual and contextual work."],
+    ["What is diegetic sound in film?", "Sound that originates within the story world", ["Music only the audience hears", "Narration added in post", "Sound recorded off set"], "A radio in the scene is diegetic; a score is not."],
+    ["What does mise-en-scene cover?", "Everything placed within the frame", ["Only the dialogue", "Only the editing", "Only the soundtrack"], "Setting, costume, lighting and staging all belong to it."],
+    ["What is a jump cut?", "An abrupt cut between shots of similar framing", ["A slow dissolve", "A cut to black", "A match cut on movement"], "The discontinuity of time or position is deliberate."],
+    ["What is a storyboard?", "A shot-by-shot visual plan", ["A script revision", "A lighting diagram", "A budget sheet"], "Storyboards plan framing and action before shooting."],
+    ["What is cross-cutting?", "Alternating between two actions happening at the same time", ["Cutting to a flashback", "Cutting on a musical beat", "Cutting to a title card"], "Cross-cutting builds comparison or tension."],
+    ["What does a gaffer do?", "Runs the lighting department", ["Operates the camera", "Edits the film", "Manages the budget"], "The gaffer executes the cinematographer's lighting plan."],
+    ["What is a montage?", "A sequence of short shots compressing time or meaning", ["A single long take", "A silent scene", "A closing credit roll"], "Montage condenses action into a brief sequence."],
+    ["In dance, what is a canon?", "The same movement performed by dancers in sequence", ["All dancers moving in unison", "A solo performed in silence", "A repeated floor pattern"], "A canon staggers the same phrase across dancers."],
+    ["What is a leitmotif in film music?", "A recurring theme associated with a character or idea", ["A song played over the credits", "A temporary scratch track", "A type of microphone"], "Leitmotifs link music to narrative meaning."]
+  ].map(function (fact) { return normaliseFact(fact, ["theatre and film"]); });
 
   const CS_FACTS = [
     ["What does CPU stand for?", "Central Processing Unit", ["Computer Personal Unit", "Central Program Utility", "Control Processing User"], "The CPU executes instructions and coordinates other components."],
@@ -209,8 +284,14 @@
     if (/cyber|network|computer|programming|algorithm|coding/.test(text)) return "cs";
     if (/literature/.test(nameText)) return "concept";
     if (/korean|russian|italian|hebrew|spanish|french|german|portuguese|hindi|chinese|mandarin|japanese|arabic|latin/.test(nameText)) return "language";
-    if (/art|music|theater|theatre|film|drawing|design/.test(text)) return "arts";
-    if (/physics/.test(text)) return "physics";
+    /* Keep disciplines apart: a music course must not draw art-history facts. */
+    if (/music|ear training|orchestr|conduct|harmony|counterpoint|ethnomusic|acoustics|audio engineering|music production/.test(nameText)) return "music";
+    if (/theat|theater|drama|acting|film|cinema|screenwriting|dance|choreograph|animation|media studies/.test(nameText)) return "stage";
+    if (/writing|journalism|rhetoric/.test(nameText)) return "english";
+    if (/\bart\b|\barts\b|drawing|design|photograph|sculpture|ceramics|architecture|illustration|fashion/.test(text)) return "arts";
+    if (/philosoph|ethic|epistemolog|metaphys/.test(nameText)) return "philosophy";
+    if (/quantum|relativity|nuclear/.test(nameText)) return "physics";
+    if (/\bphysics\b/.test(text)) return "physics";
     if (/calculus/.test(text)) return "calculus";
     if (/statistic|probability|data science|data analysis/.test(text)) return "data";
     if (/algebra|geometry|trigonometry|precalculus|mathematics|math|linear|discrete/.test(text)) return "math";
@@ -224,6 +305,9 @@
     if (domain === "science") return SCIENCE;
     if (domain === "social") return SOCIAL;
     if (domain === "arts") return ARTS;
+    if (domain === "music") return MUSIC;
+    if (domain === "stage") return STAGE;
+    if (domain === "philosophy") return PHILOSOPHY;
     if (domain === "cs") return CS_FACTS;
     if (domain === "english") return ENGLISH;
     if (domain === "research") return RESEARCH;
