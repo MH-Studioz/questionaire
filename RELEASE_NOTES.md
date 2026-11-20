@@ -1,3 +1,35 @@
+# Questionaire 0.6.1-alpha — Test papers release
+
+Released 20 November 2026.
+
+This release keeps the existing paper-and-ink interface and adds fixed assessment papers to every subject. It also removes the unshipped OmniLearn prototype folder from the repository; nothing in the live site linked to it.
+
+## Test papers
+
+- A **Test Papers** button on every subject header opens a fixed paper library.
+- **Three practice sets (A, B, C)** per subject: 20 questions, instant grading, hints, bookmarks and the full step-by-step explanation.
+- **Three mock papers (1, 2, 3)** per subject: 20 questions on a deadline, no feedback until submission, graded at the end.
+- Papers are composed deterministically from the subject bank, so a retake uses the same questions and compares like with like; the A/B/C and 1/2/3 variants draw different questions.
+- **Topic score reports** after every practice set, mock paper and ordinary exam: correct/total per topic with mastery bars.
+- The **weakest topic** is called out with a **Practise this topic** button that opens practice pre-filtered to that tag, plus a visible filter note and a clear control.
+- Paper answers use the existing XP, streak, accuracy, mistake-bank and review-queue pipeline; there is no parallel progression store.
+- The ordinary timed exam keeps its existing behaviour and now shows the same topic report.
+
+## Release housekeeping
+
+- Cache-busting query strings in `index.html` are unified under `0.6.1-alpha`.
+- The footer shows the release number (`Release 0.6.1-alpha`).
+- `omnilearn/` (the standalone prototype built earlier) was deleted.
+- No subject, question-bank, account, sync or theme data was changed.
+
+## Known limitations
+
+- Paper sessions and score reports live for the session; they are not stored as a separate paper-history record. Solved counts, accuracy, XP and mistakes persist as before.
+- Mock papers draw from the loaded subject bank; very small banks produce shorter papers than the advertised 20.
+- Cloud sync, guest sessions and Firebase setup are unchanged from 0.6-alpha.
+
+---
+
 # Questionaire 0.6-alpha — Accounts and catalogue release
 
 Released 18 November 2026.

@@ -33,9 +33,11 @@ git push origin main
 
 Cloud login only works after the public Firebase config is filled in and the providers are enabled. See [Firebase setup](#firebase-setup).
 
-## Release 0.6-alpha
+## Release 0.6.1-alpha
 
-The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It covers the real login system, guest mode, the learning mode, the 443-subject catalogue, 47 languages, the language studio (word decks with pronunciation plus flashcards), AP/exam banks, the `questions/` pool restructure, language-bank fixes, dead-code cleanup, and the known alpha limitations.
+The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It covers the real login system, guest mode, the learning mode, the 443-subject catalogue, 47 languages, the language studio (word decks with pronunciation plus flashcards), AP/exam banks, the `questions/` pool restructure, and the known alpha limitations.
+
+**0.6.1-alpha** adds fixed **test papers** to every subject: three practice sets with instant feedback and three timed mock papers, each with a topic-by-topic score report and a one-click jump to practise the weakest topic. The paper/ink interface is unchanged. The unshipped OmniLearn prototype folder has been removed.
 
 ## Files
 
@@ -43,7 +45,7 @@ The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It cover
 | --- | --- |
 | `index.html` | Page shell, fonts, CDN scripts |
 | `styles.css` | Paper, Ink and OLED themes plus layout |
-| `app.js` | Routing, identity gate, practice, exam timer, review, search, local storage, cloud merge |
+| `app.js` | Routing, identity gate, practice, test papers, exam timer, review, search, local storage, cloud merge |
 | `database.js` | Categories, subjects, questions, study cards, tips, videos |
 | `ap-courses.js` | All 42 AP course packs and their exam-focused content |
 | `exam-prep.js` | SAT, ACT, PSAT, GED and GRE banks (1,000 questions per exam) |
@@ -58,9 +60,9 @@ The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It cover
 | `firebase-sync.js` | Email/password + Google auth, password reset, owner-only Firestore reads and writes |
 | `firestore.rules` | `users/{uid}` owner-only rules |
 | `firebase.json` | Hosting config (not required for GitHub Pages) |
-| `RELEASE_NOTES.md` | 0.6-alpha feature, fix and limitation list |
+| `RELEASE_NOTES.md` | 0.6.1-alpha feature, fix and limitation list |
 | `ROADMAP.md` | Prioritized next steps after the alpha |
-| `NEXT_STEPS.txt` | Plain-text plan for the work after 0.6-alpha, plus a release checklist |
+| `NEXT_STEPS.txt` | Plain-text plan for the work after 0.6.1-alpha, plus a release checklist |
 | `.nojekyll` | Stops GitHub Pages running Jekyll over the folder |
 | `.gitignore` | OS/editor junk and local Freebuff project markers |
 

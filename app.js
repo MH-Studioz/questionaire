@@ -17,6 +17,7 @@
      Constants
      -------------------------------------------------------------------------- */
 
+  const APP_VERSION = "0.6.1-alpha";
   const STORAGE_KEY = "questionaire.progress.v1";
   const ACCOUNTS_KEY = "questionaire.accounts.v1";
   const THEME_KEY = "questionaire.theme";
@@ -186,6 +187,7 @@
 
   let exam = null;
   let examTimer = null;
+  let paper = null;
   let pendingTarget = null;
   let searchResults = [];
   let searchDebounce = null;
@@ -798,17 +800,26 @@
 
   function getFilters(subjectId) {
     if (!state.filters[subjectId]) {
-      state.filters[subjectId] = { difficulty: "All", mode: "practice", limit: 20 };
+      state.filters[subjectId] = { difficulty: "All", mode: "practice", limit: 20, topic: "" };
     }
     if (!Number(state.filters[subjectId].limit)) state.filters[subjectId].limit = 20;
+    if (typeof state.filters[subjectId].topic !== "string") state.filters[subjectId].topic = "";
     return state.filters[subjectId];
   }
 
-  function filteredQuestions(subject, difficulty) {
-    if (!difficulty || difficulty === "All") return subject.questions.slice();
-    return subject.questions.filter(function (question) {
-      return question.difficulty === difficulty;
-    });
+  function filteredQuestions(subject, difficulty, topic) {
+    let questions = subject.questions.slice();
+    if (difficulty && difficulty !== "All") {
+      questions = questions.filter(function (question) {
+        return question.difficulty === difficulty;
+      });
+    }
+    if (topic) {
+      questions = questions.filter(function (question) {
+        return (question.tags || []).indexOf(topic) >= 0;
+      });
+    }
+    return questions;
   }
 
   function emptyState(icon, title, text, cta) {
@@ -1370,7 +1381,7 @@
     const panel = document.getElementById("sidebar-level");
     const footerMeta = document.getElementById("footer-meta");
     if (footerMeta) {
-      footerMeta.textContent = "Vol. 1 · " + SUBJECTS.length + " subjects · Set in Instrument Serif & IBM Plex";
+      footerMeta.textContent = "Vol. 1 · " + SUBJECTS.length + " subjects · Release " + APP_VERSION + " · Set in Instrument Serif & IBM Plex";
     }
 
     if (panel) {
@@ -1814,6 +1825,7 @@
       }).join("") + "</div>" +
       '<div class="subject-header-actions">' +
       '<a class="btn btn-primary" href="#/subject/' + esc(subject.id) + '/practice"><i data-lucide="play"></i>Practice</a>' +
+      '<button type="button" class="btn btn-ghost" data-action="open-papers" data-subject="' + esc(subject.id) + '"><i data-lucide="file-stack"></i>Test papers</button>' +
       '<a class="btn btn-ghost" href="#/subject/' + esc(subject.id) + '/study"><i data-lucide="book-open"></i>Study cards</a>' +
       "</div></div>" +
       '<div class="subject-header-side">' +
@@ -1830,7 +1842,7 @@
   function practiceTabHTML(entry) {
     const subject = entry.subject;
     const filters = getFilters(subject.id);
-    const questions = filteredQuestions(subject, filters.difficulty);
+    const questions = filteredQuestions(subject, filters.difficulty, filters.topic);
     const deckSize = packWords(subject).length;
     let ordered = questions;
     if (focusQid) {
@@ -1864,7 +1876,20 @@
         : "") +
       '<button type="button" class="mode-btn ' + (filters.mode === "exam" ? "active" : "") + '" data-action="mode" data-subject="' + esc(subject.id) + '" data-mode="exam">' +
       '<i data-lucide="timer"></i>Exam</button>' +
+      '<button type="button" class="mode-btn ' + (filters.mode === "papers" ? "active" : "") + '" data-action="mode" data-subject="' + esc(subject.id) + '" data-mode="papers">' +
+      '<i data-lucide="file-stack"></i>Papers</button>' +
       "</div></div>";
+
+    const topicNote = filters.topic
+      ? '<p class="practice-note topic-note"><i data-lucide="filter"></i>Focused on <strong>' + esc(filters.topic) + '</strong> ' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-action="clear-topic" data-subject="' + esc(subject.id) + '">Clear topic</button></p>'
+      : "";
+
+    if (filters.mode === "papers") {
+      if (exam && exam.subjectId === subject.id && exam.paperKey) return toolbar + examTabHTML(entry, questions);
+      if (paper && paper.subjectId === subject.id) return toolbar + paperRunnerHTML(entry);
+      return toolbar + papersTabHTML(entry);
+    }
 
     if (filters.mode === "exam") return toolbar + examTabHTML(entry, questions);
     if (filters.mode === "flashcards") return toolbar + flashcardsHTML(entry);
@@ -1874,7 +1899,7 @@
     }
 
     return (
-      toolbar +
+      toolbar + topicNote +
       '<p class="practice-note"><i data-lucide="zap"></i>Instant feedback — answer, then reveal the derivation one step at a time.' +
       (ordered.length > 20 ? ' <span class="practice-count">' + visible.length + " of " + ordered.length + " shown</span>" : "") + "</p>" +
       '<div class="question-list">' + visible.map(function (question) {
@@ -2036,8 +2061,11 @@
         '<div class="exam-result-copy"><strong>' +
         (activeExam.score === activeExam.questions.length ? "Perfect run." : activeExam.score / activeExam.questions.length >= 0.7 ? "Strong pass." : "Review the misses below.") +
         "</strong>You answered " + activeExam.score + " of " + activeExam.questions.length + " correctly. Explanations are unlocked below.</div>" +
-        '<button type="button" class="btn btn-ghost btn-sm" data-action="retake-exam" data-subject="' + esc(subject.id) + '"><i data-lucide="rotate-ccw"></i>Retake</button>' +
-        "</div>"
+        (activeExam.paperKey
+          ? '<button type="button" class="btn btn-ghost btn-sm" data-action="retake-paper" data-subject="' + esc(subject.id) + '" data-paper="' + esc(activeExam.paperKey) + '"><i data-lucide="rotate-ccw"></i>Retake paper</button>' +
+            '<button type="button" class="btn btn-ghost btn-sm" data-action="exit-paper"><i data-lucide="file-stack"></i>All papers</button>'
+          : '<button type="button" class="btn btn-ghost btn-sm" data-action="retake-exam" data-subject="' + esc(subject.id) + '"><i data-lucide="rotate-ccw"></i>Retake</button>') +
+        "</div>" + examReportHTML(activeExam)
       : '<div class="exam-bar">' +
         '<div class="exam-timer" id="exam-timer-wrap"><i data-lucide="timer"></i><span id="exam-timer">' + formatTime(remaining) + "</span></div>" +
         '<div class="exam-progress"><div class="progress"><div class="progress-bar" id="exam-progress-bar" style="width:' + timePct + '%"></div></div></div>' +
@@ -2192,6 +2220,274 @@
     toast(
       (auto ? "Time's up — " : "") + "Exam graded: " + exam.score + "/" + exam.questions.length,
       exam.score / exam.questions.length >= 0.7 ? "" : "is-warn"
+    );
+  }
+
+  /* --------------------------------------------------------------------------
+     Test papers — fixed practice sets and timed mock papers
+     -------------------------------------------------------------------------- */
+
+  function paperSeed(value) {
+    let hash = 2166136261;
+    String(value).split("").forEach(function (character) {
+      hash ^= character.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    });
+    return hash >>> 0;
+  }
+
+  function paperQuestions(subject, kind, key) {
+    const offset = kind === "practice" ? key.charCodeAt(0) - 65 : Number(key) || 0;
+    const pool = subject.questions.map(function (question) {
+      return { question: question, rank: (paperSeed(question.id) + offset * 2654435761) >>> 0 };
+    });
+    pool.sort(function (a, b) { return a.rank - b.rank; });
+    const limit = kind === "practice"
+      ? 20
+      : Math.min(25, Number(subject.testConfig && subject.testConfig.questions) || 25);
+    return pool.slice(0, limit).map(function (item) { return item.question; });
+  }
+
+  function papersTabHTML(entry) {
+    const subject = entry.subject;
+    const total = subject.questions.length;
+    if (!total) {
+      return emptyState("filter", "No questions to build papers from", "This bank is empty at the moment.", "");
+    }
+    const practiceCount = Math.min(20, total);
+    const mockCount = Math.min(25, Number(subject.testConfig && subject.testConfig.questions) || 25, total);
+    const secondsPer = Number(subject.testConfig && subject.testConfig.secondsPerQuestion) || SECONDS_PER_QUESTION;
+    const mockMinutes = Math.max(1, Math.ceil((mockCount * secondsPer) / 60));
+
+    function card(kind, key, title, copy, meta) {
+      return (
+        '<article class="paper-card card">' +
+        '<div class="paper-card-head"><span class="paper-kicker">' + (kind === "practice" ? "Practice set" : "Mock paper") + '</span>' +
+        '<span class="badge ' + (kind === "practice" ? "badge-beginner" : "badge-advanced") + '">' + esc(key) + '</span></div>' +
+        "<h3>" + esc(title) + "</h3>" +
+        '<p class="paper-copy">' + esc(copy) + "</p>" +
+        '<div class="paper-meta"><span><i data-lucide="list-checks"></i>' + meta.count + ' questions</span>' +
+        '<span><i data-lucide="' + (kind === "practice" ? "zap" : "timer") + '"></i>' + esc(meta.time) + "</span></div>" +
+        '<button type="button" class="btn ' + (kind === "practice" ? "btn-primary" : "btn-teal") + ' btn-sm" data-action="' +
+        (kind === "practice" ? "start-practice-paper" : "start-mock-paper") + '" data-subject="' + esc(subject.id) + '" data-paper="' + esc(key) + '">' +
+        (kind === "practice" ? "Start set" : "Sit paper") + '<i data-lucide="arrow-right"></i></button></article>'
+      );
+    }
+
+    const practiceCards = ["A", "B", "C"].map(function (key) {
+      return card("practice", key, "Practice Set " + key, "A fixed mixed-difficulty set with instant feedback, hints and step-by-step explanations.", {
+        count: practiceCount, time: "Untimed"
+      });
+    }).join("");
+
+    const mockCards = ["1", "2", "3"].map(function (key) {
+      return card("mock", key, "Mock Paper " + key, "Exam conditions: no feedback until submission, then a full topic-by-topic score report.", {
+        count: mockCount, time: mockMinutes + " min"
+      });
+    }).join("");
+
+    return (
+      '<div class="card papers-intro">' +
+      '<div class="exam-intro-head"><span class="subject-icon accent-amber"><i data-lucide="file-stack"></i></span>' +
+      '<div><h2>Test papers</h2><p>Six fixed papers per subject — three practice sets and three timed mocks. Each paper draws the same questions every time, so retakes measure progress rather than luck.</p></div></div>' +
+      '<ul class="settings-list">' +
+      "<li><strong>Practice sets</strong> grade instantly and unlock explanations.</li>" +
+      "<li><strong>Mock papers</strong> run on a deadline and report mastery by topic.</li>" +
+      "<li>Every answer feeds XP, accuracy, the mistake bank and your streak.</li>" +
+      "</ul></div>" +
+      '<h3 class="paper-group-title">Practice sets</h3>' +
+      '<div class="paper-grid">' + practiceCards + "</div>" +
+      '<h3 class="paper-group-title">Mock exam papers</h3>' +
+      '<div class="paper-grid">' + mockCards + "</div>"
+    );
+  }
+
+  function startPracticePaper(subjectId, key) {
+    const entry = SUBJECT_MAP.get(subjectId);
+    if (!entry || !key) return;
+    const questions = paperQuestions(entry.subject, "practice", key);
+    if (!questions.length) {
+      toast("This bank has no questions yet.", "is-warn");
+      return;
+    }
+    stopExamTimer();
+    exam = null;
+    focusQid = null;
+    getFilters(subjectId).mode = "papers";
+    paper = {
+      subjectId: subjectId,
+      key: key,
+      label: "Practice Set " + key,
+      questions: questions,
+      index: 0,
+      answers: {},
+      submitted: false,
+      startedAt: Date.now()
+    };
+    paint();
+  }
+
+  function startMockPaper(subjectId, key) {
+    const entry = SUBJECT_MAP.get(subjectId);
+    if (!entry || !key) return;
+    const questions = paperQuestions(entry.subject, "mock", key);
+    if (!questions.length) {
+      toast("This bank has no questions yet.", "is-warn");
+      return;
+    }
+    stopExamTimer();
+    paper = null;
+    const secondsPer = Number(entry.subject.testConfig && entry.subject.testConfig.secondsPerQuestion) || SECONDS_PER_QUESTION;
+    const totalSeconds = questions.length * secondsPer;
+    exam = {
+      subjectId: subjectId,
+      questions: questions,
+      answers: {},
+      submitted: false,
+      score: 0,
+      totalSeconds: totalSeconds,
+      endsAt: Date.now() + totalSeconds * 1000,
+      paperKey: key,
+      paperLabel: "Mock Paper " + key
+    };
+    getFilters(subjectId).mode = "papers";
+    focusQid = null;
+    paint();
+    startExamTimer();
+  }
+
+  function paperRunnerHTML(entry) {
+    const subject = entry.subject;
+    const total = paper.questions.length;
+    const answeredCount = Object.keys(paper.answers).length;
+
+    if (paper.submitted) {
+      const score = paper.questions.filter(function (question) {
+        return paper.answers[question.id] === question.answer;
+      }).length;
+      const accuracy = total ? Math.round((score / total) * 100) : 0;
+      return (
+        '<div class="card paper-summary">' +
+        '<span class="eyebrow">' + esc(paper.label) + " · complete</span>" +
+        '<div class="paper-score">' + score + "<small>/" + total + "</small></div>" +
+        '<p class="paper-summary-copy">' + accuracy + "% accuracy · " + formatTime((Date.now() - paper.startedAt) / 1000) + " on the clock. Every answer was recorded." + "</p>" +
+        '<h3 class="paper-group-title">Mastery by topic</h3>' +
+        reportRowsHTML(topicBreakdown(paper.questions, paper.answers)) +
+        weakestTopicHTML(topicBreakdown(paper.questions, paper.answers), subject.id) +
+        '<div class="exam-actions">' +
+        '<button type="button" class="btn btn-primary" data-action="paper-retry" data-subject="' + esc(subject.id) + '"><i data-lucide="rotate-ccw"></i>Retake set</button>' +
+        '<button type="button" class="btn btn-ghost" data-action="paper-new" data-subject="' + esc(subject.id) + '"><i data-lucide="file-stack"></i>All papers</button>' +
+        "</div></div>"
+      );
+    }
+
+    const question = paper.questions[paper.index];
+    const selected = paper.answers[question.id];
+    const answered = selected !== undefined;
+    const correct = answered && selected === question.answer;
+    const starred = progress.bookmarks.indexOf(question.id) >= 0;
+    const steps = Array.isArray(question.explanation) ? question.explanation : [];
+
+    const options = question.options.map(function (option, index) {
+      let className = "option";
+      let icon = "";
+      if (answered) {
+        if (index === question.answer) {
+          className += " is-correct";
+          icon = '<i data-lucide="check" class="option-icon"></i>';
+        } else if (index === selected) {
+          className += " is-wrong";
+          icon = '<i data-lucide="x" class="option-icon"></i>';
+        } else {
+          className += " is-dim";
+        }
+      }
+      return (
+        '<button type="button" class="' + className + '" data-action="paper-answer" data-qid="' + esc(question.id) + '" data-index="' + index + '"' +
+        (answered ? " disabled" : "") + ">" +
+        '<span class="option-key">' + String.fromCharCode(65 + index) + "</span>" +
+        '<span class="option-text">' + esc(option) + "</span>" + icon + "</button>"
+      );
+    }).join("");
+
+    return (
+      '<div class="card paper-runner-head">' +
+      '<div><span class="badge badge-intermediate">' + esc(paper.label) + '</span>' +
+      "<h2>Question " + (paper.index + 1) + " of " + total + "</h2></div>" +
+      '<div class="paper-run-meta"><span class="mono">' + answeredCount + "/" + total + " answered</span>" +
+      '<button type="button" class="btn btn-ghost btn-sm" data-action="paper-new" data-subject="' + esc(subject.id) + '"><i data-lucide="x"></i>Exit</button></div>' +
+      '<div class="progress paper-progress"><div class="progress-bar" style="width:' + Math.round(((paper.index + (answered ? 1 : 0)) / total) * 100) + '%"></div></div></div>' +
+
+      '<article class="question-card card paper-question">' +
+      '<div class="q-head"><div class="q-badges"><span class="badge ' + badgeClass(question.difficulty) + '">' + esc(question.difficulty) + "</span>" +
+      (question.tags || []).slice(0, 2).map(function (tag) { return '<span class="tag">' + esc(tag) + "</span>"; }).join("") +
+      '</div><button type="button" class="icon-btn star-btn ' + (starred ? "is-starred" : "") + '" data-action="bookmark" data-qid="' + esc(question.id) + '" aria-label="Bookmark for review"><i data-lucide="star"></i></button></div>' +
+      '<div class="q-prompt">' + esc(question.prompt) + "</div>" +
+      '<div class="q-options">' + options + "</div>" +
+      '<details class="paper-hint"><summary>Need a hint?</summary><p>' + esc(question.hint) + "</p></details>" +
+      (answered
+        ? '<div class="explanation"><div class="explanation-head"><i data-lucide="route"></i>' +
+          (correct ? "Correct — here is the reasoning" : "Not quite — trace the steps") + "</div><ol class=\"steps\">" +
+          steps.map(function (step) { return '<li class="step"><span class="step-body">' + esc(step) + "</span></li>"; }).join("") + "</ol></div>"
+        : "") +
+      '<div class="exam-actions paper-actions">' +
+      '<button type="button" class="btn btn-ghost" data-action="paper-prev"' + (paper.index === 0 ? " disabled" : "") + '><i data-lucide="arrow-left"></i>Previous</button>' +
+      (answered
+        ? '<button type="button" class="btn btn-primary" data-action="paper-next">' + (paper.index + 1 >= total ? "Finish set" : "Next question") + '<i data-lucide="arrow-right"></i></button>'
+        : '<button type="button" class="btn btn-ghost" data-action="paper-finish"><i data-lucide="check-check"></i>Finish set</button>') +
+      "</div></article>"
+    );
+  }
+
+  function topicBreakdown(questions, answers) {
+    const rows = new Map();
+    questions.forEach(function (question) {
+      const tag = (question.tags && question.tags[0]) || "General";
+      const row = rows.get(tag) || { tag: tag, correct: 0, total: 0 };
+      row.total += 1;
+      if (answers[question.id] === question.answer) row.correct += 1;
+      rows.set(tag, row);
+    });
+    return Array.from(rows.values()).sort(function (a, b) {
+      return a.correct / a.total - b.correct / b.total || a.tag.localeCompare(b.tag);
+    });
+  }
+
+  function reportRowsHTML(rows) {
+    if (!rows.length) return "";
+    return '<div class="report-rows">' + rows.map(function (row) {
+      const pct = row.total ? Math.round((row.correct / row.total) * 100) : 0;
+      return '<div class="report-row"><span class="report-topic">' + esc(row.tag) + "</span>" +
+        '<span class="report-count mono">' + row.correct + "/" + row.total + "</span>" +
+        '<span class="progress report-bar"><span class="progress-bar" style="width:' + pct + '%"></span></span>' +
+        '<span class="report-pct mono">' + pct + "%</span></div>";
+    }).join("") + "</div>";
+  }
+
+  function weakestTopicHTML(rows, subjectId) {
+    if (!rows.length) return "";
+    const weakest = rows[0];
+    const perfect = rows.every(function (row) { return row.correct === row.total; });
+    return (
+      '<div class="report-weakest">' +
+      '<div><span>Weakest topic</span><strong>' + esc(weakest.tag) + "</strong></div>" +
+      (perfect
+        ? '<span class="badge badge-beginner"><i data-lucide="check"></i>No weak spots</span>'
+        : '<button type="button" class="btn btn-teal btn-sm" data-action="practice-topic" data-subject="' + esc(subjectId) + '" data-topic="' + esc(weakest.tag) + '"><i data-lucide="target"></i>Practise this topic</button>') +
+      "</div>"
+    );
+  }
+
+  function examReportHTML(activeExam) {
+    const rows = topicBreakdown(activeExam.questions, activeExam.answers);
+    const total = activeExam.questions.length;
+    return (
+      '<div class="card exam-report">' +
+      '<div class="exam-report-head"><div><span class="eyebrow">Score report</span><h3>Mastery by topic</h3></div>' +
+      '<strong class="mono">' + activeExam.score + "/" + total + "</strong></div>" +
+      reportRowsHTML(rows) +
+      weakestTopicHTML(rows, activeExam.subjectId) +
+      "</div>"
     );
   }
 
@@ -2904,6 +3200,110 @@
       focusQid = null;
       stopExamTimer();
       exam = null;
+      paint();
+      return;
+    }
+
+    if (action === "open-papers" && subjectId) {
+      const filters = getFilters(subjectId);
+      filters.mode = "papers";
+      filters.topic = "";
+      focusQid = null;
+      stopExamTimer();
+      exam = null;
+      paper = null;
+      paint();
+      return;
+    }
+
+    if (action === "start-practice-paper" && subjectId) {
+      startPracticePaper(subjectId, trigger.getAttribute("data-paper"));
+      return;
+    }
+
+    if (action === "start-mock-paper" && subjectId) {
+      startMockPaper(subjectId, trigger.getAttribute("data-paper"));
+      return;
+    }
+
+    if (action === "paper-answer" && questionId) {
+      if (!paper || paper.submitted) return;
+      if (paper.answers[questionId] !== undefined) return;
+      const info = QUESTION_MAP.get(questionId);
+      if (!info) return;
+      const index = Number(trigger.getAttribute("data-index"));
+      paper.answers[questionId] = index;
+      recordAnswer(questionId, index === info.question.answer);
+      paint();
+      return;
+    }
+
+    if (action === "paper-next") {
+      if (!paper) return;
+      if (paper.index + 1 >= paper.questions.length) paper.submitted = true;
+      else paper.index += 1;
+      paint();
+      return;
+    }
+
+    if (action === "paper-prev") {
+      if (!paper || paper.index === 0) return;
+      paper.index -= 1;
+      paint();
+      return;
+    }
+
+    if (action === "paper-finish") {
+      if (!paper) return;
+      const unanswered = paper.questions.length - Object.keys(paper.answers).length;
+      if (unanswered > 0 && !window.confirm(unanswered + " " + plural(unanswered, "question is", "questions are") + " unanswered. Finish the set anyway?")) return;
+      paper.submitted = true;
+      paint();
+      return;
+    }
+
+    if (action === "paper-retry" && subjectId) {
+      if (paper) startPracticePaper(subjectId, paper.key);
+      return;
+    }
+
+    if (action === "paper-new") {
+      paper = null;
+      if (exam && exam.paperKey) exam = null;
+      stopExamTimer();
+      paint();
+      return;
+    }
+
+    if (action === "retake-paper" && subjectId) {
+      startMockPaper(subjectId, trigger.getAttribute("data-paper") || (exam && exam.paperKey) || "1");
+      return;
+    }
+
+    if (action === "exit-paper") {
+      paper = null;
+      exam = null;
+      stopExamTimer();
+      paint();
+      return;
+    }
+
+    if (action === "practice-topic" && subjectId) {
+      const filters = getFilters(subjectId);
+      filters.mode = "practice";
+      filters.difficulty = "All";
+      filters.topic = trigger.getAttribute("data-topic") || "";
+      filters.limit = 20;
+      focusQid = null;
+      stopExamTimer();
+      exam = null;
+      paper = null;
+      go("#/subject/" + subjectId + "/practice");
+      return;
+    }
+
+    if (action === "clear-topic" && subjectId) {
+      getFilters(subjectId).topic = "";
       paint();
       return;
     }
