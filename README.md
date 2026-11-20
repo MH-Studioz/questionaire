@@ -33,11 +33,13 @@ git push origin main
 
 Cloud login only works after the public Firebase config is filled in and the providers are enabled. See [Firebase setup](#firebase-setup).
 
-## Release 0.6.1-alpha
+## Release 0.7.0-alpha
 
 The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It covers the real login system, guest mode, the learning mode, the 443-subject catalogue, 47 languages, the language studio (word decks with pronunciation plus flashcards), AP/exam banks, the `questions/` pool restructure, and the known alpha limitations.
 
-**0.6.1-alpha** adds fixed **test papers** to every subject: three practice sets with instant feedback and three timed mock papers, each with a topic-by-topic score report and a one-click jump to practise the weakest topic. The paper/ink interface is unchanged. The unshipped OmniLearn prototype folder has been removed.
+**0.7.0-alpha** turns test papers into a record. Every practice set, mock paper, timed exam and misses retake is saved as a **sitting** with its score, answers, flags and topic report; a **paper history** shows each score and the change since the last sit of the same paper, and an interrupted paper can be **resumed** after a reload with its clock still running. **Topic mastery** is now persisted and surfaced on the dashboard and in the review queue with one-click drills, and every paper ends with **review my misses** plus a **misses-only retake**. Mocks and timed exams gain a question navigator, mark-for-review flags and a review-before-submit screen.
+
+**0.6.1-alpha** added fixed **test papers** to every subject: three practice sets with instant feedback and three timed mock papers, each with a topic-by-topic score report and a one-click jump to practise the weakest topic. The paper/ink interface is unchanged. The unshipped OmniLearn prototype folder was removed.
 
 ## Files
 
@@ -60,9 +62,9 @@ The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It cover
 | `firebase-sync.js` | Email/password + Google auth, password reset, owner-only Firestore reads and writes |
 | `firestore.rules` | `users/{uid}` owner-only rules |
 | `firebase.json` | Hosting config (not required for GitHub Pages) |
-| `RELEASE_NOTES.md` | 0.6.1-alpha feature, fix and limitation list |
+| `RELEASE_NOTES.md` | 0.7.0-alpha feature, fix and limitation list |
 | `ROADMAP.md` | Prioritized next steps after the alpha |
-| `NEXT_STEPS.txt` | Plain-text plan for the work after 0.6.1-alpha, plus a release checklist |
+| `NEXT_STEPS.txt` | Plain-text plan for the work after 0.7.0-alpha, plus a release checklist |
 | `.nojekyll` | Stops GitHub Pages running Jekyll over the folder |
 | `.gitignore` | OS/editor junk and local Freebuff project markers |
 
@@ -98,7 +100,7 @@ To add a subject, copy a block in `database.js` or `new-subjects.js`, or add a c
 
 ## Navigation
 
-The home page starts with search, a progress summary, recommended subjects, the AP shelf and the SAT/ACT/PSAT/GED/GRE shelf. **Browse all subjects** opens the full catalogue with section filters; the AP shelf adds subject-area filters. Every subject opens with **Practice**, a **Learn** tab (guided study path, topic deep dives using real worked questions, video lessons and a YouTube lesson search), the **Word bank** for languages, **Study bank**, **Tips** and **Video lessons**. On phones, the bottom bar keeps Home, Browse, AP, Review and Search one tap away. Large subject banks render 20 cards at a time with a **Load 20 more** control, and every Exam tab samples a timed section instead of trying to run all 1,000 questions.
+The home page starts with search, a progress summary, recommended subjects, the AP shelf and the SAT/ACT/PSAT/GED/GRE shelf. **Browse all subjects** opens the full catalogue with section filters; the AP shelf adds subject-area filters. Every subject opens with **Practice**, a **Learn** tab (guided study path, topic deep dives using real worked questions, video lessons and a YouTube lesson search), the **Word bank** for languages, **Study bank**, **Tips** and **Video lessons**. On phones, the bottom bar keeps Home, Browse, AP, Review and Search one tap away. Large subject banks render 20 cards at a time with a **Load 20 more** control, and every Exam tab samples a timed section instead of trying to run all 1,000 questions. Test papers keep their own **paper history** and unfinished-sitting **resume** prompt; every saved sitting can be reopened for a question-by-question review.
 
 ## Accounts and authentication
 
@@ -122,7 +124,7 @@ Every cloud account gets a separate offline cache under `questionaire.progress.v
 
 ### Offline profiles
 
-An offline profile stores its own progress, XP, streak, bookmarks and mistakes in this browser. It is **not password protected** and is not a security boundary; anyone using this browser can open it.
+An offline profile stores its own progress, XP, streak, bookmarks, mistakes, saved papers and topic mastery in this browser. It is **not password protected** and is not a security boundary; anyone using this browser can open it.
 
 - Profiles are listed in `questionaire.accounts.v1`.
 - Each offline profile stores progress under `questionaire.progress.v1.account.<id>`.
@@ -140,6 +142,9 @@ The old `questionaire.progress.v1` guest record is no longer an active identity 
 - Questions: union by question id; keep the highest attempt count and the first correct timestamp.
 - Vocabulary: union by subject and word; a word stays known if either side knows it, with the highest repetition count and the latest review date.
 - Bookmarks and mistakes: union the id sets, dropping ids that are no longer valid; generated `<subject-id>-g0001` ids survive before their lazy bank is loaded.
+- Corrected misses: union the corrected map by question id; a corrected question leaves the active mistake list instead of reappearing.
+- Saved papers: union attempts by attempt id, newest first, capped at the latest 60 sittings per profile. An unfinished sitting is merged by its latest save time.
+- Topic mastery: per subject and topic, keep the higher correct and total counts so replaying a topic cannot lower recorded mastery.
 - XP: merge with `max(local, cloud)` so replaying a question cannot double-count it.
 - Streak: keep the latest study date and the best streak; the current streak is normalized on load.
 - Theme and last route: local preference wins.

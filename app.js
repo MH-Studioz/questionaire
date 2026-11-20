@@ -17,7 +17,7 @@
      Constants
      -------------------------------------------------------------------------- */
 
-  const APP_VERSION = "0.6.1-alpha";
+  const APP_VERSION = "0.7.0-alpha";
   const STORAGE_KEY = "questionaire.progress.v1";
   const ACCOUNTS_KEY = "questionaire.accounts.v1";
   const THEME_KEY = "questionaire.theme";
@@ -125,7 +125,7 @@
   }
 
   function ensureReviewBanks() {
-    const ids = progress.bookmarks.concat(progress.mistakes);
+    const ids = progress.bookmarks.concat(progress.mistakes, Object.keys(progress.corrected || {}));
     if (!ids.length) return;
     if (window.QuestionaireBanks && typeof window.QuestionaireBanks.ensureForIds === "function") {
       window.QuestionaireBanks.ensureForIds(ids);
@@ -182,7 +182,9 @@
     filters: {},
     cards: {},
     decks: {},
-    reviewFilter: "all"
+    reviewFilter: "all",
+    attemptId: null,
+    attemptFilter: "all"
   };
 
   let exam = null;
@@ -210,6 +212,8 @@
      Progress
      -------------------------------------------------------------------------- */
 
+  const MAX_ATTEMPTS = 60;
+
   function defaultProgress() {
     return {
       version: 1,
@@ -220,7 +224,11 @@
       bestStreak: 0,
       lastStudyDate: null,
       bookmarks: [],
-      mistakes: []
+      mistakes: [],
+      corrected: {},
+      topicStats: {},
+      attempts: [],
+      active: null
     };
   }
 
@@ -279,7 +287,9 @@
       Number(value.xp) ||
       Number(value.streak) ||
       (Array.isArray(value.bookmarks) && value.bookmarks.length) ||
-      (Array.isArray(value.mistakes) && value.mistakes.length)
+      (Array.isArray(value.mistakes) && value.mistakes.length) ||
+      (Array.isArray(value.attempts) && value.attempts.length) ||
+      (value.topicStats && Object.keys(value.topicStats).length)
     );
   }
 
@@ -312,6 +322,51 @@
     }
   }
 
+  function mergeAttempts(left, right) {
+    const byId = new Map();
+    (Array.isArray(left) ? left : []).concat(Array.isArray(right) ? right : []).forEach(function (attempt) {
+      if (!attempt || typeof attempt !== "object" || !attempt.id) return;
+      const existing = byId.get(attempt.id);
+      if (!existing || String(attempt.finishedAt || "") > String(existing.finishedAt || "")) {
+        byId.set(attempt.id, attempt);
+      }
+    });
+    return Array.from(byId.values())
+      .sort(function (a, b) { return String(b.finishedAt || "").localeCompare(String(a.finishedAt || "")); })
+      .slice(0, MAX_ATTEMPTS);
+  }
+
+  function mergeTopicStats(left, right) {
+    const merged = {};
+    [left || {}, right || {}].forEach(function (source) {
+      Object.keys(source).forEach(function (subjectId) {
+        const bucket = merged[subjectId] || (merged[subjectId] = {});
+        const rows = source[subjectId] || {};
+        Object.keys(rows).forEach(function (tag) {
+          const a = bucket[tag];
+          const b = rows[tag] || {};
+          if (!a) {
+            bucket[tag] = { correct: Number(b.correct) || 0, total: Number(b.total) || 0 };
+            return;
+          }
+          bucket[tag] = {
+            correct: Math.max(Number(a.correct) || 0, Number(b.correct) || 0),
+            total: Math.max(Number(a.total) || 0, Number(b.total) || 0)
+          };
+        });
+      });
+    });
+    return merged;
+  }
+
+  function pickActive(left, right) {
+    const a = left && typeof left === "object" ? left : null;
+    const b = right && typeof right === "object" ? right : null;
+    if (!a) return b;
+    if (!b) return a;
+    return Number(b.savedAt) > Number(a.savedAt) ? b : a;
+  }
+
   function mergeProgress(local, remote) {
     const left = Object.assign(defaultProgress(), local && typeof local === "object" ? local : {});
     const right = Object.assign(defaultProgress(), remote && typeof remote === "object" ? remote : {});
@@ -331,7 +386,15 @@
     });
 
     const bookmarks = Array.from(new Set((left.bookmarks || []).concat(right.bookmarks || []))).filter(isKnownQuestionId);
-    const mistakes = Array.from(new Set((left.mistakes || []).concat(right.mistakes || []))).filter(isKnownQuestionId);
+    const corrected = {};
+    [left.corrected || {}, right.corrected || {}].forEach(function (source) {
+      Object.keys(source).forEach(function (id) {
+        if (!corrected[id] || String(source[id]) > String(corrected[id])) corrected[id] = source[id];
+      });
+    });
+    const mistakes = Array.from(new Set((left.mistakes || []).concat(right.mistakes || [])))
+      .filter(isKnownQuestionId)
+      .filter(function (id) { return !corrected[id]; });
     const lastStudyDate = [left.lastStudyDate, right.lastStudyDate].filter(Boolean).sort().pop() || null;
 
     const vocab = {};
@@ -368,7 +431,11 @@
       bestStreak: Math.max(Number(left.bestStreak) || 0, Number(right.bestStreak) || 0),
       lastStudyDate: lastStudyDate,
       bookmarks: bookmarks,
-      mistakes: mistakes
+      mistakes: mistakes,
+      corrected: corrected,
+      topicStats: mergeTopicStats(left.topicStats, right.topicStats),
+      attempts: mergeAttempts(left.attempts, right.attempts),
+      active: pickActive(left.active, right.active)
     };
   }
 
@@ -403,7 +470,14 @@
     if (!Array.isArray(merged.bookmarks)) merged.bookmarks = [];
     if (!Array.isArray(merged.mistakes)) merged.mistakes = [];
     merged.bookmarks = merged.bookmarks.filter(isKnownQuestionId);
-    merged.mistakes = merged.mistakes.filter(isKnownQuestionId);
+    if (!merged.corrected || typeof merged.corrected !== "object") merged.corrected = {};
+    merged.mistakes = merged.mistakes.filter(isKnownQuestionId).filter(function (id) {
+      return !merged.corrected[id];
+    });
+    if (!merged.topicStats || typeof merged.topicStats !== "object") merged.topicStats = {};
+    if (!Array.isArray(merged.attempts)) merged.attempts = [];
+    merged.attempts = mergeAttempts(merged.attempts, []);
+    if (!merged.active || typeof merged.active !== "object") merged.active = null;
     if (!merged.vocab || typeof merged.vocab !== "object") merged.vocab = {};
     merged.xp = Number(merged.xp) || 0;
     merged.streak = Number(merged.streak) || 0;
@@ -422,7 +496,9 @@
     loadProgress();
     state.cards = {};
     state.decks = {};
+    state.attemptId = null;
     exam = null;
+    paper = null;
     pendingTarget = null;
     normalizeStreak();
   }
@@ -668,8 +744,30 @@
     if (isCorrect && !record.firstCorrect) record.firstCorrect = now;
     progress.answered[questionId] = record;
     progress.xp = (progress.xp || 0) + (isCorrect ? XP_PER_CORRECT : XP_PER_ATTEMPT);
+    const info = QUESTION_MAP.get(questionId);
+    if (info) {
+      const tag = (info.question.tags && info.question.tags[0]) || "General";
+      const subjectId = info.subject.id;
+      const bucket = progress.topicStats[subjectId] || (progress.topicStats[subjectId] = {});
+      const row = bucket[tag] || (bucket[tag] = { correct: 0, total: 0 });
+      row.total += 1;
+      if (isCorrect) row.correct += 1;
+    }
     if (!isCorrect && progress.mistakes.indexOf(questionId) < 0) {
       progress.mistakes.push(questionId);
+      /* Missed again after a clean retry: it returns to the active queue. */
+      delete progress.corrected[questionId];
+    }
+    /* A miss answered correctly on a later attempt leaves the active queue and
+       is filed as "later corrected" so the review tab can show the recovery. */
+    if (isCorrect) {
+      const index = progress.mistakes.indexOf(questionId);
+      if (index >= 0) {
+        progress.mistakes.splice(index, 1);
+        progress.corrected[questionId] = now;
+        const correctedIds = Object.keys(progress.corrected);
+        if (correctedIds.length > 200) delete progress.corrected[correctedIds[0]];
+      }
     }
     touchStreak();
     saveProgress();
@@ -679,6 +777,12 @@
     const items = new Map();
     progress.mistakes.forEach(function (id) {
       if (QUESTION_MAP.has(id)) items.set(id, { reasons: ["missed"] });
+    });
+    Object.keys(progress.corrected || {}).forEach(function (id) {
+      if (!QUESTION_MAP.has(id) || progress.mistakes.indexOf(id) >= 0) return;
+      const item = items.get(id) || { reasons: [] };
+      if (item.reasons.indexOf("corrected") < 0) item.reasons.push("corrected");
+      items.set(id, item);
     });
     progress.bookmarks.forEach(function (id) {
       if (!QUESTION_MAP.has(id)) return;
@@ -1679,6 +1783,13 @@
       '<div class="home-section-head"><div><span class="eyebrow">The rest of the annual</span><h2>Browse by section</h2></div></div>' +
       '<div class="category-list">' + categoryRows + '</div>' +
       '</section>' +
+
+      '<section class="home-section home-work">' +
+      '<div class="home-section-head"><div><span class="eyebrow">Your record, measured</span><h2>Papers &amp; weak spots</h2><p>Every sitting is saved with its answers and topic report. Retake one and the comparison is waiting for you.</p></div>' +
+      '<a class="text-link" href="#/review">Review queue<i data-lucide="arrow-right"></i></a></div>' +
+      '<div class="work-grid">' + recentAttemptsHTML() + masteryPanelHTML(4) + '</div>' +
+      (progress.active ? activeResumeHTML() : "") +
+      '</section>' +
       '</div>';
   }
 
@@ -1951,9 +2062,9 @@
       : "";
 
     const reasons = (options.reviewReasons || []).map(function (reason) {
-      return reason === "missed"
-        ? '<span class="badge badge-advanced"><i data-lucide="circle-x"></i>Missed</span>'
-        : '<span class="badge badge-intermediate"><i data-lucide="star"></i>Starred</span>';
+      if (reason === "missed") return '<span class="badge badge-advanced"><i data-lucide="circle-x"></i>Missed</span>';
+      if (reason === "corrected") return '<span class="badge badge-beginner"><i data-lucide="check"></i>Later corrected</span>';
+      return '<span class="badge badge-intermediate"><i data-lucide="star"></i>Starred</span>';
     }).join("");
 
     const tags = (question.tags || []).slice(0, 2).map(function (tag) {
@@ -2054,31 +2165,89 @@
     const answeredCount = Object.keys(activeExam.answers).length;
     const remaining = remainingSeconds();
     const timePct = activeExam.totalSeconds ? Math.max(0, Math.round((remaining / activeExam.totalSeconds) * 100)) : 0;
+    const missedCount = activeExam.questions.filter(function (question) {
+      return activeExam.answers[question.id] !== question.answer;
+    }).length;
+    const previous = lastAttempt(activeExam.subjectId, activeExam.paperKey || "exam", activeExam.attemptId);
+    const delta = previous ? activeExam.score - previous.score : null;
+    const visibleQuestions = submitted && activeExam.reviewMisses
+      ? activeExam.questions.filter(function (question) { return activeExam.answers[question.id] !== question.answer; })
+      : activeExam.questions;
 
     const bar = submitted
       ? '<div class="exam-result">' +
         '<div class="exam-score">' + activeExam.score + "<small>/" + activeExam.questions.length + "</small></div>" +
         '<div class="exam-result-copy"><strong>' +
         (activeExam.score === activeExam.questions.length ? "Perfect run." : activeExam.score / activeExam.questions.length >= 0.7 ? "Strong pass." : "Review the misses below.") +
-        "</strong>You answered " + activeExam.score + " of " + activeExam.questions.length + " correctly. Explanations are unlocked below.</div>" +
+        "</strong>You answered " + activeExam.score + " of " + activeExam.questions.length + " correctly. Saved to paper history." +
+        (delta === null ? "" : " " + (delta >= 0 ? "+" : "") + delta + " vs your previous sit.") + "</div>" +
+        '<div class="exam-result-actions">' +
         (activeExam.paperKey
           ? '<button type="button" class="btn btn-ghost btn-sm" data-action="retake-paper" data-subject="' + esc(subject.id) + '" data-paper="' + esc(activeExam.paperKey) + '"><i data-lucide="rotate-ccw"></i>Retake paper</button>' +
             '<button type="button" class="btn btn-ghost btn-sm" data-action="exit-paper"><i data-lucide="file-stack"></i>All papers</button>'
           : '<button type="button" class="btn btn-ghost btn-sm" data-action="retake-exam" data-subject="' + esc(subject.id) + '"><i data-lucide="rotate-ccw"></i>Retake</button>') +
-        "</div>" + examReportHTML(activeExam)
+        (missedCount ? '<button type="button" class="btn btn-teal btn-sm" data-action="exam-retake-misses"><i data-lucide="target"></i>Retake ' + missedCount + " " + plural(missedCount, "miss", "misses") + "</button>" : "") +
+        (missedCount ? '<button type="button" class="btn btn-ghost btn-sm ' + (activeExam.reviewMisses ? "" : "is-active") + '" data-action="exam-review-filter" data-value="all">All answers</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm ' + (activeExam.reviewMisses ? "is-active" : "") + '" data-action="exam-review-filter" data-value="misses">Only misses</button>' : "") +
+        "</div></div>" + examReportHTML(activeExam)
       : '<div class="exam-bar">' +
         '<div class="exam-timer" id="exam-timer-wrap"><i data-lucide="timer"></i><span id="exam-timer">' + formatTime(remaining) + "</span></div>" +
         '<div class="exam-progress"><div class="progress"><div class="progress-bar" id="exam-progress-bar" style="width:' + timePct + '%"></div></div></div>' +
-        '<div class="exam-meta">' + answeredCount + " / " + activeExam.questions.length + " answered</div>" +
+        '<div class="exam-meta">' + answeredCount + " / " + activeExam.questions.length + " answered" +
+        ((activeExam.flags || []).length ? " · " + activeExam.flags.length + " marked" : "") + "</div>" +
+        '<button type="button" class="btn btn-ghost btn-sm" data-action="exam-review-open"><i data-lucide="clipboard-check"></i>Review</button>' +
         '<button type="button" class="btn btn-teal" data-action="submit-exam"><i data-lucide="check-check"></i>Submit</button>' +
         "</div>";
 
     return (
       bar +
-      '<div class="card exam-panel">' + activeExam.questions.map(function (question, index) {
-        return examQuestionHTML(question, index, activeExam, submitted);
+      (submitted ? "" : examNavigatorHTML(activeExam)) +
+      (activeExam.reviewing && !submitted ? examReviewPanelHTML(activeExam) : "") +
+      '<div class="card exam-panel">' + visibleQuestions.map(function (question) {
+        return examQuestionHTML(question, activeExam.questions.indexOf(question), activeExam, submitted);
       }).join("") + "</div>" +
       (submitted ? "" : '<div class="exam-actions"><button type="button" class="btn btn-teal" data-action="submit-exam"><i data-lucide="check-check"></i>Submit exam</button></div>')
+    );
+  }
+
+  function examNavigatorHTML(activeExam) {
+    return (
+      '<div class="card q-nav-card exam-nav">' +
+      '<div class="q-nav-head"><span class="eyebrow">Question navigator</span>' +
+      '<span class="q-nav-legend"><span class="q-nav-key is-answered"></span>Answered' +
+      '<span class="q-nav-key is-flagged"></span>Marked</span></div>' +
+      '<div class="q-nav">' + activeExam.questions.map(function (question, index) {
+        const done = activeExam.answers[question.id] !== undefined;
+        const marked = (activeExam.flags || []).indexOf(question.id) >= 0;
+        return '<button type="button" class="q-nav-btn' + (done ? " is-answered" : "") + (marked ? " is-flagged" : "") + '" data-action="exam-goto" data-index="' + index + '" aria-label="Question ' + (index + 1) + (done ? ", answered" : ", blank") + '">' + (index + 1) + "</button>";
+      }).join("") + "</div>" +
+      '<p class="q-nav-note">Tap a number to jump. Marked questions stay flagged when you submit.</p></div>'
+    );
+  }
+
+  function examReviewPanelHTML(activeExam) {
+    const total = activeExam.questions.length;
+    const answered = Object.keys(activeExam.answers).length;
+    const blank = total - answered;
+    const rows = activeExam.questions.map(function (question, index) {
+      const done = activeExam.answers[question.id] !== undefined;
+      const marked = (activeExam.flags || []).indexOf(question.id) >= 0;
+      return (
+        '<button type="button" class="paper-review-row' + (done ? " is-answered" : " is-blank") + (marked ? " is-flagged" : "") + '" data-action="exam-goto" data-index="' + index + '">' +
+        '<span class="mono">' + (index + 1) + "</span>" +
+        "<span>" + (done ? "Answered" : "Blank") + (marked ? " · marked for review" : "") + "</span>" +
+        '<span class="mono">' + (done ? "ABCD".charAt(activeExam.answers[question.id]) : "—") + "</span></button>"
+      );
+    }).join("");
+    return (
+      '<div class="card paper-review exam-review">' +
+      '<div class="exam-intro-head"><span class="subject-icon accent-amber"><i data-lucide="clipboard-check"></i></span>' +
+      "<div><h2>Review before you submit</h2><p>" + answered + " of " + total + " answered · " + blank + " blank · " + (activeExam.flags || []).length + " marked. The clock is still running.</p></div></div>" +
+      '<div class="paper-review-list">' + rows + "</div>" +
+      '<div class="exam-actions">' +
+      '<button type="button" class="btn btn-ghost" data-action="exam-review-close"><i data-lucide="arrow-left"></i>Back to questions</button>' +
+      '<button type="button" class="btn btn-teal" data-action="submit-exam"><i data-lucide="check-check"></i>Submit exam</button>' +
+      "</div></div>"
     );
   }
 
@@ -2116,12 +2285,17 @@
         }).join("") + "</ol></div>"
       : "";
 
+    const flagged = (activeExam.flags || []).indexOf(question.id) >= 0;
+    const missed = submitted && activeExam.answers[question.id] !== question.answer;
+
     return (
-      '<div class="exam-question">' +
+      '<div class="exam-question' + (missed ? " is-missed" : "") + '" id="exam-q-' + index + '">' +
       '<div class="exam-question-head">' +
       '<span class="exam-qnum">' + (index + 1) + "</span>" +
       '<span class="badge ' + badgeClass(question.difficulty) + '">' + esc(question.difficulty) + "</span>" +
-      '<span style="margin-left:auto"><button type="button" class="icon-btn star-btn ' + (starred ? "is-starred" : "") + '" data-action="bookmark" data-qid="' + esc(question.id) + '" aria-label="Bookmark for review" title="Bookmark for review"><i data-lucide="star"></i></button></span>' +
+      '<span class="exam-q-tools">' +
+      (submitted ? "" : '<button type="button" class="flag-btn ' + (flagged ? "is-flagged" : "") + '" data-action="exam-flag" data-qid="' + esc(question.id) + '" aria-pressed="' + flagged + '" aria-label="Mark for review"><i data-lucide="flag"></i>' + (flagged ? "Marked" : "Mark") + "</button>") +
+      '<button type="button" class="icon-btn star-btn ' + (starred ? "is-starred" : "") + '" data-action="bookmark" data-qid="' + esc(question.id) + '" aria-label="Bookmark for review" title="Bookmark for review"><i data-lucide="star"></i></button></span>' +
       "</div>" +
       '<div class="q-prompt">' + esc(question.prompt) + "</div>" +
       '<div class="q-options">' + options + "</div>" + explanation +
@@ -2151,16 +2325,23 @@
     const test = entry.subject.testConfig;
     const questions = test ? sampleQuestions(pool, Math.min(test.questions || 20, pool.length)) : pool;
     stopExamTimer();
+    getFilters(subjectId).mode = "exam";
+    state.attemptId = null;
     const totalSeconds = questions.length * (test ? test.secondsPerQuestion || SECONDS_PER_QUESTION : SECONDS_PER_QUESTION);
     exam = {
       subjectId: subjectId,
       questions: questions,
       answers: {},
+      flags: [],
       submitted: false,
       score: 0,
+      reviewing: false,
+      reviewMisses: false,
       totalSeconds: totalSeconds,
-      endsAt: Date.now() + totalSeconds * 1000
+      endsAt: Date.now() + totalSeconds * 1000,
+      startedAt: Date.now()
     };
+    saveActiveAttempt();
     paint();
     startExamTimer();
   }
@@ -2210,12 +2391,27 @@
     if (!exam || exam.submitted) return;
     stopExamTimer();
     exam.submitted = true;
+    exam.reviewing = false;
     exam.score = 0;
     exam.questions.forEach(function (question) {
       const correct = exam.answers[question.id] === question.answer;
       if (correct) exam.score += 1;
       recordAnswer(question.id, correct);
     });
+    const entry = SUBJECT_MAP.get(exam.subjectId);
+    const attempt = archiveAttempt({
+      kind: exam.paperKey ? "mock" : "exam",
+      subjectId: exam.subjectId,
+      subjectTitle: entry ? entry.subject.title : "",
+      key: exam.paperKey || "exam",
+      label: exam.paperLabel || "Timed exam",
+      questions: exam.questions,
+      answers: exam.answers,
+      flags: exam.flags,
+      startedAt: exam.startedAt,
+      seconds: Math.min(Number(exam.totalSeconds) || Infinity, (Date.now() - exam.startedAt) / 1000)
+    });
+    exam.attemptId = attempt.id;
     paint();
     toast(
       (auto ? "Time's up — " : "") + "Exam graded: " + exam.score + "/" + exam.questions.length,
@@ -2226,6 +2422,479 @@
   /* --------------------------------------------------------------------------
      Test papers — fixed practice sets and timed mock papers
      -------------------------------------------------------------------------- */
+
+  /* --------------------------------------------------------------------------
+     Attempts — one saved record for sets, mock papers and timed exams
+     -------------------------------------------------------------------------- */
+
+  function newAttemptId() {
+    return "att-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+  }
+
+  function encodeAnswers(questions, answers) {
+    return questions.map(function (question) {
+      const value = answers[question.id];
+      return value === undefined ? "x" : String(value);
+    }).join("");
+  }
+
+  function decodeAnswers(attempt) {
+    const answers = {};
+    const raw = String((attempt && attempt.answers) || "");
+    ((attempt && attempt.questions) || []).forEach(function (id, index) {
+      const value = raw.charAt(index);
+      if (value && value !== "x") answers[id] = Number(value);
+    });
+    return answers;
+  }
+
+  function questionObjectsFor(ids, subjectId) {
+    const entry = SUBJECT_MAP.get(subjectId);
+    if (entry) ensureSubjectBank(entry);
+    return (ids || []).map(function (id) {
+      const info = QUESTION_MAP.get(id);
+      return info ? info.question : null;
+    }).filter(Boolean);
+  }
+
+  function attemptKindLabel(kind) {
+    if (kind === "mock") return "Mock paper";
+    if (kind === "exam") return "Timed exam";
+    if (kind === "retry") return "Misses retake";
+    return "Practice set";
+  }
+
+  function attemptWhen(iso) {
+    if (!iso) return "—";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " · " +
+      date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  }
+
+  function attemptById(id) {
+    return (progress.attempts || []).find(function (attempt) { return attempt.id === id; }) || null;
+  }
+
+  function subjectAttempts(subjectId) {
+    return (progress.attempts || []).filter(function (attempt) {
+      return attempt.subjectId === subjectId;
+    });
+  }
+
+  function lastAttempt(subjectId, key, beforeId) {
+    return subjectAttempts(subjectId).find(function (attempt) {
+      return attempt.paperKey === key && attempt.id !== beforeId;
+    }) || null;
+  }
+
+  function bestAttempt(subjectId, key) {
+    return subjectAttempts(subjectId).filter(function (attempt) {
+      return attempt.paperKey === key;
+    }).sort(function (a, b) { return b.score / (b.total || 1) - a.score / (a.total || 1); })[0] || null;
+  }
+
+  function archiveAttempt(spec) {
+    const questions = spec.questions || [];
+    const answers = spec.answers || {};
+    const score = questions.filter(function (question) {
+      return answers[question.id] === question.answer;
+    }).length;
+    const topics = {};
+    topicBreakdown(questions, answers).forEach(function (row) {
+      topics[row.tag] = { correct: row.correct, total: row.total };
+    });
+    const previous = lastAttempt(spec.subjectId, spec.key);
+    const attempt = {
+      id: newAttemptId(),
+      kind: spec.kind || "practice",
+      subjectId: spec.subjectId,
+      subjectTitle: spec.subjectTitle || "",
+      paperKey: spec.key,
+      label: spec.label || "Practice set",
+      startedAt: Number(spec.startedAt) || Date.now(),
+      finishedAt: new Date().toISOString(),
+      seconds: Math.max(0, Math.round(Number(spec.seconds) || 0)),
+      score: score,
+      total: questions.length,
+      delta: previous && previous.total === questions.length ? score - previous.score : null,
+      deltaBase: previous ? previous.id : null,
+      flags: (spec.flags || []).filter(function (id) { return spec.questions.indexOf(id) >= 0; }),
+      questions: questions.map(function (question) { return question.id; }),
+      answers: encodeAnswers(questions, answers),
+      topics: topics
+    };
+    progress.attempts = [attempt].concat(progress.attempts || []).slice(0, MAX_ATTEMPTS);
+    progress.active = null;
+    saveProgress();
+    return attempt;
+  }
+
+  /* Remember the paper in flight so a refresh, a closed tab or a phone call
+     does not throw the sitting away. */
+  function saveActiveAttempt() {
+    const source = paper || exam;
+    if (!source || source.submitted) return;
+    const isPaper = Boolean(paper);
+    const questions = isPaper ? paper.questions : exam.questions;
+    const subjectId = isPaper ? paper.subjectId : exam.subjectId;
+    const entry = SUBJECT_MAP.get(subjectId);
+    progress.active = {
+      savedAt: Date.now(),
+      kind: isPaper ? paper.kind || "practice" : exam.paperKey ? "mock" : "exam",
+      subjectId: subjectId,
+      subjectTitle: entry ? entry.subject.title : "",
+      key: isPaper ? paper.key : exam.paperKey || "exam",
+      label: isPaper ? paper.label : exam.paperLabel || "Timed exam",
+      questions: questions.map(function (question) { return question.id; }),
+      answers: encodeAnswers(questions, isPaper ? paper.answers : exam.answers),
+      flags: (isPaper ? paper.flags : exam.flags) || [],
+      index: isPaper ? paper.index : 0,
+      startedAt: isPaper ? paper.startedAt : exam.startedAt || Date.now(),
+      endsAt: isPaper ? null : exam.endsAt,
+      totalSeconds: isPaper ? null : exam.totalSeconds
+    };
+    saveProgress();
+  }
+
+  function activeAttemptFor(subjectId) {
+    const active = progress.active;
+    if (!active || !subjectId || active.subjectId !== subjectId) return null;
+    return active;
+  }
+
+  function resumeActiveAttempt() {
+    const active = progress.active;
+    if (!active) return;
+    const entry = SUBJECT_MAP.get(active.subjectId);
+    const questions = entry ? questionObjectsFor(active.questions, active.subjectId) : [];
+    if (!entry || !questions.length) {
+      progress.active = null;
+      saveProgress();
+      toast("That sitting can no longer be rebuilt.", "is-warn");
+      paint();
+      return;
+    }
+    stopExamTimer();
+    exam = null;
+    paper = null;
+    state.attemptId = null;
+    getFilters(active.subjectId).mode = "papers";
+    const answers = decodeAnswers(active);
+
+    if (active.kind === "practice" || active.kind === "retry") {
+      paper = {
+        subjectId: active.subjectId,
+        key: active.key,
+        kind: active.kind,
+        label: active.label,
+        questions: questions,
+        index: Math.min(Number(active.index) || 0, questions.length - 1),
+        answers: answers,
+        flags: active.flags || [],
+        reviewing: false,
+        submitted: false,
+        startedAt: Number(active.startedAt) || Date.now()
+      };
+      if (state.route.name === "subject" && state.route.subjectId === active.subjectId && state.route.tab === "practice") paint();
+      else go("#/subject/" + active.subjectId + "/practice");
+      toast("Set resumed where you left it.");
+      return;
+    }
+
+    const secondsPer = Number(entry.subject.testConfig && entry.subject.testConfig.secondsPerQuestion) || SECONDS_PER_QUESTION;
+    const totalSeconds = Number(active.totalSeconds) || questions.length * secondsPer;
+    exam = {
+      subjectId: active.subjectId,
+      questions: questions,
+      answers: answers,
+      flags: active.flags || [],
+      submitted: false,
+      score: 0,
+      reviewMisses: false,
+      totalSeconds: totalSeconds,
+      endsAt: Number(active.endsAt) || Date.now() + totalSeconds * 1000,
+      paperKey: active.kind === "mock" ? active.key : null,
+      paperLabel: active.kind === "mock" ? active.label : null,
+      startedAt: Number(active.startedAt) || Date.now()
+    };
+    if (state.route.name === "subject" && state.route.subjectId === active.subjectId && state.route.tab === "practice") paint();
+    else go("#/subject/" + active.subjectId + "/practice");
+    if (remainingSeconds() <= 0) {
+      gradeExam(true);
+      return;
+    }
+    startExamTimer();
+    toast("Paper resumed — the clock is still running.");
+  }
+
+  function activeResumeHTML() {
+    const active = progress.active;
+    if (!active) return "";
+    const entry = SUBJECT_MAP.get(active.subjectId);
+    if (!entry) return "";
+    const total = (active.questions || []).length;
+    const answered = Object.keys(decodeAnswers(active)).length;
+    return (
+      '<div class="resume-strip card">' +
+      '<div class="resume-copy"><span class="resume-kicker">Unfinished sitting</span>' +
+      "<strong>" + esc(entry.subject.title) + " · " + esc(active.label) + "</strong>" +
+      '<small>' + answered + " of " + total + " answered" + (active.kind === "mock" ? " · timed" : " · untimed") + "</small></div>" +
+      '<div class="resume-actions">' +
+      '<button type="button" class="btn btn-primary btn-sm" data-action="resume-attempt"><i data-lucide="play"></i>Resume</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-action="discard-attempt"><i data-lucide="x"></i>Discard</button>' +
+      "</div></div>"
+    );
+  }
+
+  function deltaHTML(attempt) {
+    if (!attempt || !attempt.deltaBase) return '<span class="attempt-delta is-first">first sit</span>';
+    const delta = attempt.delta;
+    if (delta === null || delta === undefined || !Number.isFinite(Number(delta))) {
+      return '<span class="attempt-delta" title="A different number of questions, so scores are not comparable">—</span>';
+    }
+    if (Number(delta) === 0) return '<span class="attempt-delta">level</span>';
+    const up = Number(delta) > 0;
+    return '<span class="attempt-delta ' + (up ? "is-up" : "is-down") + '">' + (up ? "+" : "") + delta + "</span>";
+  }
+
+  function attemptRowHTML(attempt, showSubject) {
+    const pct = attempt.total ? Math.round((attempt.score / attempt.total) * 100) : 0;
+    return (
+      '<div class="attempt-row">' +
+      '<span class="attempt-date mono">' + esc(attemptWhen(attempt.finishedAt)) + '</span>' +
+      '<span class="attempt-label"><strong>' + esc(attempt.label) + "</strong>" +
+      '<small>' + (showSubject && attempt.subjectTitle ? esc(attempt.subjectTitle) + " · " : "") + esc(attemptKindLabel(attempt.kind)) + "</small></span>" +
+      '<span class="attempt-score mono">' + attempt.score + "<small>/" + attempt.total + "</small></span>" +
+      '<span class="attempt-pct mono">' + pct + "%</span>" +
+      deltaHTML(attempt) +
+      '<button type="button" class="btn btn-ghost btn-sm" data-action="open-attempt" data-attempt="' + esc(attempt.id) + '"><i data-lucide="list-checks"></i>Review</button>' +
+      "</div>"
+    );
+  }
+
+  function attemptHistoryHTML(subjectId) {
+    const all = subjectAttempts(subjectId);
+    if (!all.length) return "";
+    return (
+      '<div class="card attempt-history">' +
+      '<div class="attempt-history-head"><div><span class="eyebrow">Paper history</span><h3>Every sitting is kept</h3></div>' +
+      '<span class="attempt-history-count mono">' + all.length + " " + plural(all.length, "sitting", "sittings") + "</span></div>" +
+      '<div class="attempt-table">' + all.slice(0, 8).map(function (attempt) {
+        return attemptRowHTML(attempt, false);
+      }).join("") + "</div>" +
+      (all.length > 8 ? '<p class="attempt-history-more">Showing the latest 8. Older sittings stay in your record.</p>' : "") +
+      "</div>"
+    );
+  }
+
+  function recentAttemptsHTML() {
+    const attempts = (progress.attempts || []).slice(0, 5);
+    if (!attempts.length) {
+      return (
+        '<div class="card attempt-history attempt-history-empty">' +
+        '<div class="attempt-history-head"><div><span class="eyebrow">Paper history</span><h3>No papers sat yet</h3></div></div>' +
+        '<p class="paper-copy">Open any subject, choose <strong>Test papers</strong>, and sit a practice set or a timed mock. The score, the topic breakdown and every answer are saved here.</p>' +
+        "</div>"
+      );
+    }
+    return (
+      '<div class="card attempt-history">' +
+      '<div class="attempt-history-head"><div><span class="eyebrow">Paper history</span><h3>Recent sittings</h3></div>' +
+      '<span class="attempt-history-count mono">' + (progress.attempts || []).length + " saved</span></div>" +
+      '<div class="attempt-table">' + attempts.map(function (attempt) {
+        return attemptRowHTML(attempt, true);
+      }).join("") + "</div></div>"
+    );
+  }
+
+  function topicMasteryRows(subjectId) {
+    const bucket = progress.topicStats[subjectId] || {};
+    return Object.keys(bucket).map(function (tag) {
+      const row = bucket[tag] || {};
+      const total = Number(row.total) || 0;
+      const correct = Number(row.correct) || 0;
+      return {
+        subjectId: subjectId,
+        tag: tag,
+        correct: correct,
+        total: total,
+        pct: total ? Math.round((correct / total) * 100) : 0
+      };
+    }).filter(function (row) { return row.total >= 2; });
+  }
+
+  function weakestTopics(limit, subjectId) {
+    const rows = [];
+    const subjectIds = subjectId ? [subjectId] : Object.keys(progress.topicStats || {});
+    subjectIds.forEach(function (id) {
+      const entry = SUBJECT_MAP.get(id);
+      if (!entry) return;
+      topicMasteryRows(id).forEach(function (row) {
+        row.subjectTitle = entry.subject.title;
+        rows.push(row);
+      });
+    });
+    return rows
+      .sort(function (a, b) { return a.pct - b.pct || b.total - a.total; })
+      .slice(0, limit || 4);
+  }
+
+  function masteryPanelHTML(limit, subjectId) {
+    const rows = weakestTopics(limit || 4, subjectId);
+    if (!rows.length) return "";
+    return (
+      '<div class="card mastery-panel">' +
+      '<div class="attempt-history-head"><div><span class="eyebrow">Topic mastery</span><h3>Where the next points are</h3></div>' +
+      '<span class="attempt-history-count mono">' + rows.length + " weak " + plural(rows.length, "topic", "topics") + "</span></div>" +
+      '<div class="mastery-rows">' + rows.map(function (row) {
+        return (
+          '<div class="mastery-row">' +
+          '<span class="mastery-topic"><strong>' + esc(row.tag) + "</strong><small>" + esc(row.subjectTitle) + "</small></span>" +
+          '<span class="progress mastery-bar"><span class="progress-bar" style="width:' + row.pct + '%"></span></span>' +
+          '<span class="mastery-pct mono">' + row.correct + "/" + row.total + "</span>" +
+          '<button type="button" class="btn btn-ghost btn-sm" data-action="practice-topic" data-subject="' + esc(row.subjectId) + '" data-topic="' + esc(row.tag) + '"><i data-lucide="target"></i>Drill</button>' +
+          "</div>"
+        );
+      }).join("") + "</div></div>"
+    );
+  }
+
+  function finishPaper() {
+    if (!paper || paper.submitted) return;
+    paper.submitted = true;
+    paper.reviewing = false;
+    const entry = SUBJECT_MAP.get(paper.subjectId);
+    const attempt = archiveAttempt({
+      kind: paper.kind || "practice",
+      subjectId: paper.subjectId,
+      subjectTitle: entry ? entry.subject.title : "",
+      key: paper.key,
+      label: paper.label,
+      questions: paper.questions,
+      answers: paper.answers,
+      flags: paper.flags,
+      startedAt: paper.startedAt,
+      seconds: (Date.now() - paper.startedAt) / 1000
+    });
+    paper.attemptId = attempt.id;
+    paint();
+    toast("Saved: " + attempt.score + "/" + attempt.total + " · " + paper.label, attempt.score / (attempt.total || 1) >= 0.7 ? "" : "is-warn");
+  }
+
+  function sitAgain(attempt) {
+    if (!attempt) return;
+    state.attemptId = null;
+    state.attemptFilter = "all";
+    if (attempt.kind === "mock") {
+      startMockPaper(attempt.subjectId, attempt.paperKey);
+      return;
+    }
+    if (attempt.kind === "exam") {
+      startExam(attempt.subjectId);
+      return;
+    }
+    startPracticePaper(attempt.subjectId, attempt.paperKey);
+  }
+
+  function startMissesRetake(subjectId, questions) {
+    if (!questions.length) {
+      toast("No misses to retake — clean paper.", "");
+      return;
+    }
+    stopExamTimer();
+    exam = null;
+    state.attemptId = null;
+    getFilters(subjectId).mode = "papers";
+    paper = {
+      subjectId: subjectId,
+      key: "misses",
+      kind: "retry",
+      label: "Misses retake (" + questions.length + ")",
+      questions: questions,
+      index: 0,
+      answers: {},
+      flags: [],
+      reviewing: false,
+      submitted: false,
+      startedAt: Date.now()
+    };
+    saveActiveAttempt();
+    paint();
+  }
+
+  function attemptMisses(attempt) {
+    const answers = decodeAnswers(attempt);
+    return questionObjectsFor(attempt.questions, attempt.subjectId).filter(function (question) {
+      return answers[question.id] !== question.answer;
+    });
+  }
+
+  function attemptReviewHTML(attempt) {
+    const questions = questionObjectsFor(attempt.questions, attempt.subjectId);
+    const answers = decodeAnswers(attempt);
+    const misses = questions.filter(function (question) { return answers[question.id] !== question.answer; });
+    const filter = state.attemptFilter === "misses" ? "misses" : "all";
+    const shown = filter === "misses" ? misses : questions;
+    const rows = topicBreakdown(questions, answers);
+    const pct = attempt.total ? Math.round((attempt.score / attempt.total) * 100) : 0;
+
+    const list = shown.map(function (question) {
+      const picked = answers[question.id];
+      const correct = picked === question.answer;
+      const number = attempt.questions.indexOf(question.id) + 1;
+      const pickedText = picked === undefined
+        ? "Left blank"
+        : String.fromCharCode(65 + picked) + " · " + question.options[picked];
+      const correctText = String.fromCharCode(65 + question.answer) + " · " + question.options[question.answer];
+      const steps = Array.isArray(question.explanation) ? question.explanation : [];
+      return (
+        '<article class="attempt-q ' + (correct ? "is-correct" : "is-wrong") + '">' +
+        '<div class="attempt-q-head"><span class="attempt-q-num mono">' + String(number).padStart(2, "0") + '</span>' +
+        '<span class="badge ' + badgeClass(question.difficulty) + '">' + esc(question.difficulty) + "</span>" +
+        '<span class="attempt-q-topic">' + esc((question.tags && question.tags[0]) || "General") + "</span>" +
+        '<span class="attempt-q-mark ' + (correct ? "is-correct" : "is-wrong") + '">' + (correct ? "Correct" : "Missed") + "</span></div>" +
+        '<p class="attempt-q-prompt">' + esc(question.prompt) + "</p>" +
+        '<div class="attempt-q-rows">' +
+        '<div class="attempt-q-row"><span>Your answer</span><strong class="' + (correct ? "is-correct" : "is-wrong") + '">' + esc(pickedText) + "</strong></div>" +
+        (correct ? "" : '<div class="attempt-q-row"><span>Correct</span><strong class="is-correct">' + esc(correctText) + "</strong></div>") +
+        "</div>" +
+        (steps.length
+          ? '<details class="attempt-q-steps"><summary>Steps</summary><ol class="steps">' + steps.map(function (step) {
+              return '<li class="step"><span class="step-body">' + esc(step) + "</span></li>";
+            }).join("") + "</ol></details>"
+          : "") +
+        "</article>"
+      );
+    }).join("");
+
+    return (
+      '<div class="attempt-review">' +
+      '<div class="card attempt-review-head">' +
+      '<div class="attempt-review-copy"><span class="eyebrow">Saved attempt · ' + esc(attemptWhen(attempt.finishedAt)) + '</span>' +
+      "<h2>" + esc(attempt.label) + "</h2>" +
+      "<p>" + esc(attempt.subjectTitle || "") + " · " + esc(attemptKindLabel(attempt.kind)) + " · " +
+      formatTime(attempt.seconds) + " on the clock · " + pct + "% accuracy</p></div>" +
+      '<div class="attempt-review-score">' + attempt.score + "<small>/" + attempt.total + "</small></div>" +
+      "</div>" +
+      '<div class="card exam-report"><div class="exam-report-head"><div><span class="eyebrow">Score report</span><h3>Mastery by topic</h3></div>' +
+      '<strong class="mono">' + attempt.score + "/" + attempt.total + "</strong></div>" +
+      reportRowsHTML(rows) + weakestTopicHTML(rows, attempt.subjectId) + "</div>" +
+      '<div class="toolbar card attempt-toolbar">' +
+      '<div class="review-filters" role="group" aria-label="Filter answers">' +
+      '<span class="filter-label">Show</span>' +
+      '<button type="button" class="chip ' + (filter === "all" ? "active" : "") + '" data-action="attempt-filter" data-value="all">All ' + questions.length + "</button>" +
+      '<button type="button" class="chip ' + (filter === "misses" ? "active" : "") + '" data-action="attempt-filter" data-value="misses">Misses ' + misses.length + "</button>" +
+      "</div>" +
+      '<div class="review-actions">' +
+      '<button type="button" class="btn btn-teal btn-sm" data-action="retake-misses" data-attempt="' + esc(attempt.id) + '"><i data-lucide="target"></i>Retake ' + misses.length + " " + plural(misses.length, "miss", "misses") + "</button>" +
+      '<button type="button" class="btn btn-ghost btn-sm" data-action="retake-attempt" data-attempt="' + esc(attempt.id) + '"><i data-lucide="rotate-ccw"></i>Sit again</button>' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-action="attempt-back" data-subject="' + esc(attempt.subjectId) + '"><i data-lucide="arrow-left"></i>All papers</button>' +
+      "</div></div>" +
+      '<div class="attempt-list">' + (shown.length ? list : emptyState("check-check", "No misses on this one", "Every question was correct, so there is nothing to review.", "")) + "</div>" +
+      "</div>"
+    );
+  }
 
   function paperSeed(value) {
     let hash = 2166136261;
@@ -2250,6 +2919,11 @@
 
   function papersTabHTML(entry) {
     const subject = entry.subject;
+    if (state.attemptId) {
+      const saved = attemptById(state.attemptId);
+      if (saved && saved.subjectId === subject.id) return attemptReviewHTML(saved);
+      state.attemptId = null;
+    }
     const total = subject.questions.length;
     if (!total) {
       return emptyState("filter", "No questions to build papers from", "This bank is empty at the moment.", "");
@@ -2260,6 +2934,9 @@
     const mockMinutes = Math.max(1, Math.ceil((mockCount * secondsPer) / 60));
 
     function card(kind, key, title, copy, meta) {
+      const best = bestAttempt(subject.id, key);
+      const active = activeAttemptFor(subject.id);
+      const resumable = active && active.key === key && ((kind === "practice" && active.kind !== "mock" && active.kind !== "exam") || (kind === "mock" && active.kind === "mock"));
       return (
         '<article class="paper-card card">' +
         '<div class="paper-card-head"><span class="paper-kicker">' + (kind === "practice" ? "Practice set" : "Mock paper") + '</span>' +
@@ -2267,10 +2944,11 @@
         "<h3>" + esc(title) + "</h3>" +
         '<p class="paper-copy">' + esc(copy) + "</p>" +
         '<div class="paper-meta"><span><i data-lucide="list-checks"></i>' + meta.count + ' questions</span>' +
-        '<span><i data-lucide="' + (kind === "practice" ? "zap" : "timer") + '"></i>' + esc(meta.time) + "</span></div>" +
-        '<button type="button" class="btn ' + (kind === "practice" ? "btn-primary" : "btn-teal") + ' btn-sm" data-action="' +
-        (kind === "practice" ? "start-practice-paper" : "start-mock-paper") + '" data-subject="' + esc(subject.id) + '" data-paper="' + esc(key) + '">' +
-        (kind === "practice" ? "Start set" : "Sit paper") + '<i data-lucide="arrow-right"></i></button></article>'
+        '<span><i data-lucide="' + (kind === "practice" ? "zap" : "timer") + '"></i>' + esc(meta.time) + "</span>" +
+        (best ? '<span class="paper-best"><i data-lucide="award"></i>Best ' + best.score + "/" + best.total + "</span>" : "") + "</div>" +
+        '<button type="button" class="btn ' + (resumable ? "btn-primary" : kind === "practice" ? "btn-primary" : "btn-teal") + ' btn-sm" data-action="' +
+        (resumable ? "resume-attempt" : kind === "practice" ? "start-practice-paper" : "start-mock-paper") + '" data-subject="' + esc(subject.id) + '" data-paper="' + esc(key) + '">' +
+        (resumable ? "Resume" : kind === "practice" ? (best ? "Sit again" : "Start set") : best ? "Sit again" : "Sit paper") + '<i data-lucide="arrow-right"></i></button></article>'
       );
     }
 
@@ -2281,24 +2959,28 @@
     }).join("");
 
     const mockCards = ["1", "2", "3"].map(function (key) {
-      return card("mock", key, "Mock Paper " + key, "Exam conditions: no feedback until submission, then a full topic-by-topic score report.", {
+      return card("mock", key, "Mock Paper " + key, "Exam conditions: no feedback, a question navigator and a review screen before submission.", {
         count: mockCount, time: mockMinutes + " min"
       });
     }).join("");
 
     return (
+      activeResumeHTML() +
       '<div class="card papers-intro">' +
       '<div class="exam-intro-head"><span class="subject-icon accent-amber"><i data-lucide="file-stack"></i></span>' +
       '<div><h2>Test papers</h2><p>Six fixed papers per subject — three practice sets and three timed mocks. Each paper draws the same questions every time, so retakes measure progress rather than luck.</p></div></div>' +
       '<ul class="settings-list">' +
       "<li><strong>Practice sets</strong> grade instantly and unlock explanations.</li>" +
-      "<li><strong>Mock papers</strong> run on a deadline and report mastery by topic.</li>" +
-      "<li>Every answer feeds XP, accuracy, the mistake bank and your streak.</li>" +
+      "<li><strong>Mock papers</strong> run on a deadline with flags, a navigator and a review screen.</li>" +
+      "<li>Every sitting is saved with its score, answers and topic report — leave and resume any time.</li>" +
+      "<li>Every answer feeds XP, accuracy, topic mastery and your streak.</li>" +
       "</ul></div>" +
       '<h3 class="paper-group-title">Practice sets</h3>' +
       '<div class="paper-grid">' + practiceCards + "</div>" +
       '<h3 class="paper-group-title">Mock exam papers</h3>' +
-      '<div class="paper-grid">' + mockCards + "</div>"
+      '<div class="paper-grid">' + mockCards + "</div>" +
+      attemptHistoryHTML(subject.id) +
+      masteryPanelHTML(4, subject.id)
     );
   }
 
@@ -2310,20 +2992,26 @@
       toast("This bank has no questions yet.", "is-warn");
       return;
     }
+    if (progress.active && !window.confirm("Discard the unfinished sitting in this profile and start a new one?")) return;
     stopExamTimer();
     exam = null;
     focusQid = null;
+    state.attemptId = null;
     getFilters(subjectId).mode = "papers";
     paper = {
       subjectId: subjectId,
       key: key,
+      kind: "practice",
       label: "Practice Set " + key,
       questions: questions,
       index: 0,
       answers: {},
+      flags: [],
+      reviewing: false,
       submitted: false,
       startedAt: Date.now()
     };
+    saveActiveAttempt();
     paint();
   }
 
@@ -2335,6 +3023,7 @@
       toast("This bank has no questions yet.", "is-warn");
       return;
     }
+    if (progress.active && !window.confirm("Discard the unfinished sitting in this profile and start a new paper?")) return;
     stopExamTimer();
     paper = null;
     const secondsPer = Number(entry.subject.testConfig && entry.subject.testConfig.secondsPerQuestion) || SECONDS_PER_QUESTION;
@@ -2342,16 +3031,20 @@
     exam = {
       subjectId: subjectId,
       questions: questions,
-      answers: {},
+      answers: {}, flags: [],
       submitted: false,
       score: 0,
+      reviewMisses: false,
       totalSeconds: totalSeconds,
       endsAt: Date.now() + totalSeconds * 1000,
       paperKey: key,
-      paperLabel: "Mock Paper " + key
+      paperLabel: "Mock Paper " + key,
+      startedAt: Date.now()
     };
     getFilters(subjectId).mode = "papers";
     focusQid = null;
+    state.attemptId = null;
+    saveActiveAttempt();
     paint();
     startExamTimer();
   }
@@ -2366,18 +3059,26 @@
         return paper.answers[question.id] === question.answer;
       }).length;
       const accuracy = total ? Math.round((score / total) * 100) : 0;
+      const previous = lastAttempt(paper.subjectId, paper.key, paper.attemptId);
+      const misses = paper.questions.filter(function (question) {
+        return paper.answers[question.id] !== question.answer;
+      }).length;
       return (
         '<div class="card paper-summary">' +
-        '<span class="eyebrow">' + esc(paper.label) + " · complete</span>" +
+        '<span class="eyebrow">' + esc(paper.label) + " · saved to history</span>" +
         '<div class="paper-score">' + score + "<small>/" + total + "</small></div>" +
-        '<p class="paper-summary-copy">' + accuracy + "% accuracy · " + formatTime((Date.now() - paper.startedAt) / 1000) + " on the clock. Every answer was recorded." + "</p>" +
+        '<p class="paper-summary-copy">' + accuracy + "% accuracy · " + formatTime((Date.now() - paper.startedAt) / 1000) + " on the clock." +
+        (previous ? " " + (score - previous.score >= 0 ? "+" : "") + (score - previous.score) + " vs your previous sit." : "") + "</p>" +
+        '<div class="exam-actions paper-summary-actions">' +
+        '<button type="button" class="btn btn-teal" data-action="review-current-paper"><i data-lucide="list-checks"></i>Review answers</button>' +
+        (misses ? '<button type="button" class="btn btn-ghost" data-action="retake-current-misses"><i data-lucide="target"></i>Retake ' + misses + " " + plural(misses, "miss", "misses") + "</button>" : "") +
+        '<button type="button" class="btn btn-ghost" data-action="paper-retry" data-subject="' + esc(subject.id) + '"><i data-lucide="rotate-ccw"></i>Retake set</button>' +
+        '<button type="button" class="btn btn-ghost" data-action="paper-new" data-subject="' + esc(subject.id) + '"><i data-lucide="file-stack"></i>All papers</button>' +
+        "</div>" +
         '<h3 class="paper-group-title">Mastery by topic</h3>' +
         reportRowsHTML(topicBreakdown(paper.questions, paper.answers)) +
         weakestTopicHTML(topicBreakdown(paper.questions, paper.answers), subject.id) +
-        '<div class="exam-actions">' +
-        '<button type="button" class="btn btn-primary" data-action="paper-retry" data-subject="' + esc(subject.id) + '"><i data-lucide="rotate-ccw"></i>Retake set</button>' +
-        '<button type="button" class="btn btn-ghost" data-action="paper-new" data-subject="' + esc(subject.id) + '"><i data-lucide="file-stack"></i>All papers</button>' +
-        "</div></div>"
+        "</div>"
       );
     }
 
@@ -2410,18 +3111,25 @@
       );
     }).join("");
 
+    const flagged = paper.flags.indexOf(question.id) >= 0;
+
+    if (paper.reviewing) return paperReviewScreenHTML();
+
     return (
       '<div class="card paper-runner-head">' +
       '<div><span class="badge badge-intermediate">' + esc(paper.label) + '</span>' +
       "<h2>Question " + (paper.index + 1) + " of " + total + "</h2></div>" +
       '<div class="paper-run-meta"><span class="mono">' + answeredCount + "/" + total + " answered</span>" +
+      (paper.flags.length ? '<span class="mono paper-flag-count">' + paper.flags.length + " marked</span>" : "") +
       '<button type="button" class="btn btn-ghost btn-sm" data-action="paper-new" data-subject="' + esc(subject.id) + '"><i data-lucide="x"></i>Exit</button></div>' +
       '<div class="progress paper-progress"><div class="progress-bar" style="width:' + Math.round(((paper.index + (answered ? 1 : 0)) / total) * 100) + '%"></div></div></div>' +
+      paperNavigatorHTML() +
 
       '<article class="question-card card paper-question">' +
       '<div class="q-head"><div class="q-badges"><span class="badge ' + badgeClass(question.difficulty) + '">' + esc(question.difficulty) + "</span>" +
       (question.tags || []).slice(0, 2).map(function (tag) { return '<span class="tag">' + esc(tag) + "</span>"; }).join("") +
-      '</div><button type="button" class="icon-btn star-btn ' + (starred ? "is-starred" : "") + '" data-action="bookmark" data-qid="' + esc(question.id) + '" aria-label="Bookmark for review"><i data-lucide="star"></i></button></div>' +
+      '</div><div class="q-head-tools"><button type="button" class="flag-btn ' + (flagged ? "is-flagged" : "") + '" data-action="paper-flag" data-qid="' + esc(question.id) + '" aria-pressed="' + flagged + '" aria-label="Mark for review"><i data-lucide="flag"></i>' + (flagged ? "Marked" : "Mark") + '</button>' +
+      '<button type="button" class="icon-btn star-btn ' + (starred ? "is-starred" : "") + '" data-action="bookmark" data-qid="' + esc(question.id) + '" aria-label="Bookmark for review"><i data-lucide="star"></i></button></div></div>' +
       '<div class="q-prompt">' + esc(question.prompt) + "</div>" +
       '<div class="q-options">' + options + "</div>" +
       '<details class="paper-hint"><summary>Need a hint?</summary><p>' + esc(question.hint) + "</p></details>" +
@@ -2432,10 +3140,52 @@
         : "") +
       '<div class="exam-actions paper-actions">' +
       '<button type="button" class="btn btn-ghost" data-action="paper-prev"' + (paper.index === 0 ? " disabled" : "") + '><i data-lucide="arrow-left"></i>Previous</button>' +
+      '<button type="button" class="btn btn-ghost" data-action="paper-review-open"><i data-lucide="clipboard-check"></i>Review</button>' +
       (answered
         ? '<button type="button" class="btn btn-primary" data-action="paper-next">' + (paper.index + 1 >= total ? "Finish set" : "Next question") + '<i data-lucide="arrow-right"></i></button>'
         : '<button type="button" class="btn btn-ghost" data-action="paper-finish"><i data-lucide="check-check"></i>Finish set</button>') +
       "</div></article>"
+    );
+  }
+
+  function paperNavigatorHTML() {
+    if (!paper) return "";
+    return (
+      '<div class="card q-nav-card">' +
+      '<div class="q-nav-head"><span class="eyebrow">Question navigator</span>' +
+      '<span class="q-nav-legend"><span class="q-nav-key is-answered"></span>Answered' +
+      '<span class="q-nav-key is-flagged"></span>Marked</span></div>' +
+      '<div class="q-nav">' + paper.questions.map(function (question, index) {
+        const done = paper.answers[question.id] !== undefined;
+        const marked = paper.flags.indexOf(question.id) >= 0;
+        return '<button type="button" class="q-nav-btn' + (done ? " is-answered" : "") + (marked ? " is-flagged" : "") + (index === paper.index ? " is-current" : "") + '" data-action="paper-goto" data-index="' + index + '" aria-label="Question ' + (index + 1) + (done ? ", answered" : ", blank") + (marked ? ", marked" : "") + '">' + (index + 1) + "</button>";
+      }).join("") + "</div></div>"
+    );
+  }
+
+  function paperReviewScreenHTML() {
+    const total = paper.questions.length;
+    const answered = Object.keys(paper.answers).length;
+    const blank = total - answered;
+    const rows = paper.questions.map(function (question, index) {
+      const done = paper.answers[question.id] !== undefined;
+      const marked = paper.flags.indexOf(question.id) >= 0;
+      return (
+        '<button type="button" class="paper-review-row' + (done ? " is-answered" : " is-blank") + (marked ? " is-flagged" : "") + '" data-action="paper-goto" data-index="' + index + '">' +
+        '<span class="mono">' + (index + 1) + "</span>" +
+        "<span>" + (done ? "Answered" : "Blank") + (marked ? " · marked for review" : "") + "</span>" +
+        '<span class="mono">' + (done ? "ABCD".charAt(paper.answers[question.id]) : "—") + "</span></button>"
+      );
+    }).join("");
+    return (
+      '<div class="card paper-review">' +
+      '<div class="exam-intro-head"><span class="subject-icon accent-amber"><i data-lucide="clipboard-check"></i></span>' +
+      "<div><h2>Review before you finish</h2><p>" + answered + " of " + total + " answered · " + blank + " blank · " + paper.flags.length + " marked. Nothing is graded until you finish.</p></div></div>" +
+      '<div class="paper-review-list">' + rows + "</div>" +
+      '<div class="exam-actions">' +
+      '<button type="button" class="btn btn-ghost" data-action="paper-review-close"><i data-lucide="arrow-left"></i>Back to questions</button>' +
+      '<button type="button" class="btn btn-primary" data-action="paper-submit"><i data-lucide="check-check"></i>Finish and grade</button>' +
+      "</div></div>"
     );
   }
 
@@ -2574,6 +3324,9 @@
     const missedCount = Array.from(items.values()).filter(function (item) {
       return item.reasons.indexOf("missed") >= 0;
     }).length;
+    const correctedCount = Array.from(items.values()).filter(function (item) {
+      return item.reasons.indexOf("corrected") >= 0;
+    }).length;
 
     const groups = SUBJECTS.map(function (entry) {
       const questions = entry.subject.questions.filter(function (question) {
@@ -2625,9 +3378,11 @@
       '<button type="button" class="chip ' + (filter === "all" ? "active" : "") + '" data-action="review-filter" data-value="all">All ' + items.size + "</button>" +
       '<button type="button" class="chip ' + (filter === "starred" ? "active" : "") + '" data-action="review-filter" data-value="starred">Starred ' + starredCount + "</button>" +
       '<button type="button" class="chip ' + (filter === "missed" ? "active" : "") + '" data-action="review-filter" data-value="missed">Missed ' + missedCount + "</button>" +
+      '<button type="button" class="chip ' + (filter === "corrected" ? "active" : "") + '" data-action="review-filter" data-value="corrected">Later corrected ' + correctedCount + "</button>" +
       "</div>" +
       '<div class="review-actions">' + actions.join("") + "</div>" +
       "</div>" +
+      (missedCount || correctedCount ? masteryPanelHTML(4) : "") +
       (groups.length ? groupsHTML : empty) +
       "</div>";
   }
@@ -3212,6 +3967,8 @@
       stopExamTimer();
       exam = null;
       paper = null;
+      state.attemptId = null;
+      state.attemptFilter = "all";
       paint();
       return;
     }
@@ -3234,14 +3991,19 @@
       const index = Number(trigger.getAttribute("data-index"));
       paper.answers[questionId] = index;
       recordAnswer(questionId, index === info.question.answer);
+      saveActiveAttempt();
       paint();
       return;
     }
 
     if (action === "paper-next") {
       if (!paper) return;
-      if (paper.index + 1 >= paper.questions.length) paper.submitted = true;
-      else paper.index += 1;
+      if (paper.index + 1 >= paper.questions.length) {
+        finishPaper();
+        return;
+      }
+      paper.index += 1;
+      saveActiveAttempt();
       paint();
       return;
     }
@@ -3249,6 +4011,7 @@
     if (action === "paper-prev") {
       if (!paper || paper.index === 0) return;
       paper.index -= 1;
+      saveActiveAttempt();
       paint();
       return;
     }
@@ -3257,8 +4020,164 @@
       if (!paper) return;
       const unanswered = paper.questions.length - Object.keys(paper.answers).length;
       if (unanswered > 0 && !window.confirm(unanswered + " " + plural(unanswered, "question is", "questions are") + " unanswered. Finish the set anyway?")) return;
-      paper.submitted = true;
+      finishPaper();
+      return;
+    }
+
+    if (action === "paper-goto") {
+      if (!paper) return;
+      const index = Number(trigger.getAttribute("data-index"));
+      if (Number.isNaN(index) || !paper.questions[index]) return;
+      paper.index = index;
+      paper.reviewing = false;
+      saveActiveAttempt();
       paint();
+      return;
+    }
+
+    if (action === "paper-flag" && questionId) {
+      if (!paper) return;
+      const at = paper.flags.indexOf(questionId);
+      if (at >= 0) paper.flags.splice(at, 1);
+      else paper.flags.push(questionId);
+      saveActiveAttempt();
+      paint();
+      return;
+    }
+
+    if (action === "paper-review-open") {
+      if (!paper) return;
+      paper.reviewing = true;
+      paint();
+      return;
+    }
+
+    if (action === "paper-review-close") {
+      if (!paper) return;
+      paper.reviewing = false;
+      paint();
+      return;
+    }
+
+    if (action === "paper-submit") {
+      finishPaper();
+      return;
+    }
+
+    if (action === "review-current-paper") {
+      if (!paper || !paper.attemptId) return;
+      state.attemptId = paper.attemptId;
+      state.attemptFilter = "all";
+      paper = null;
+      paint();
+      return;
+    }
+
+    if (action === "retake-current-misses") {
+      if (!paper) return;
+      const misses = paper.questions.filter(function (question) {
+        return paper.answers[question.id] !== question.answer;
+      });
+      startMissesRetake(paper.subjectId, misses);
+      return;
+    }
+
+    if (action === "resume-attempt") {
+      resumeActiveAttempt();
+      return;
+    }
+
+    if (action === "discard-attempt") {
+      if (!window.confirm("Discard the unfinished sitting? It will not be saved.")) return;
+      progress.active = null;
+      saveProgress();
+      paint();
+      toast("Unfinished sitting discarded.", "is-warn");
+      return;
+    }
+
+    if (action === "open-attempt") {
+      const attempt = attemptById(trigger.getAttribute("data-attempt"));
+      if (!attempt) return;
+      stopExamTimer();
+      exam = null;
+      paper = null;
+      state.attemptId = attempt.id;
+      state.attemptFilter = "all";
+      getFilters(attempt.subjectId).mode = "papers";
+      go("#/subject/" + attempt.subjectId + "/practice");
+      return;
+    }
+
+    if (action === "attempt-filter") {
+      state.attemptFilter = trigger.getAttribute("data-value") === "misses" ? "misses" : "all";
+      paint();
+      return;
+    }
+
+    if (action === "attempt-back") {
+      state.attemptId = null;
+      state.attemptFilter = "all";
+      paint();
+      return;
+    }
+
+    if (action === "retake-misses") {
+      const attempt = attemptById(trigger.getAttribute("data-attempt"));
+      if (!attempt) return;
+      startMissesRetake(attempt.subjectId, attemptMisses(attempt));
+      return;
+    }
+
+    if (action === "retake-attempt") {
+      sitAgain(attemptById(trigger.getAttribute("data-attempt")));
+      return;
+    }
+
+    if (action === "exam-flag" && questionId) {
+      if (!exam || exam.submitted) return;
+      const at = exam.flags.indexOf(questionId);
+      if (at >= 0) exam.flags.splice(at, 1);
+      else exam.flags.push(questionId);
+      saveActiveAttempt();
+      paint();
+      return;
+    }
+
+    if (action === "exam-goto") {
+      const index = Number(trigger.getAttribute("data-index"));
+      const target = document.getElementById("exam-q-" + index);
+      if (target) target.scrollIntoView({ block: "start", behavior: "smooth" });
+      return;
+    }
+
+    if (action === "exam-review-open") {
+      if (!exam) return;
+      exam.reviewing = true;
+      paint();
+      return;
+    }
+
+    if (action === "exam-review-close") {
+      if (!exam) return;
+      exam.reviewing = false;
+      paint();
+      return;
+    }
+
+    if (action === "exam-review-filter") {
+      if (!exam) return;
+      exam.reviewMisses = trigger.getAttribute("data-value") === "misses";
+      paint();
+      return;
+    }
+
+    if (action === "exam-retake-misses") {
+      if (!exam || !exam.submitted) return;
+      const misses = exam.questions.filter(function (question) {
+        return exam.answers[question.id] !== question.answer;
+      });
+      startMissesRetake(exam.subjectId, misses);
       return;
     }
 
@@ -3271,6 +4190,8 @@
       paper = null;
       if (exam && exam.paperKey) exam = null;
       stopExamTimer();
+      state.attemptId = null;
+      state.attemptFilter = "all";
       paint();
       return;
     }
@@ -3327,6 +4248,7 @@
     if (action === "exam-select" && questionId) {
       if (!exam || exam.submitted) return;
       exam.answers[questionId] = Number(trigger.getAttribute("data-index"));
+      saveActiveAttempt();
       paint();
       return;
     }
@@ -3349,8 +4271,9 @@
 
     if (action === "clear-mistakes") {
       if (!progress.mistakes.length) return;
-      if (!window.confirm("Clear the entire mistake bank?")) return;
+      if (!window.confirm("Clear the entire mistake bank, including questions marked later corrected?")) return;
       progress.mistakes = [];
+      progress.corrected = {};
       saveProgress();
       paint();
       toast("Mistake bank cleared.", "is-warn");
@@ -3362,7 +4285,10 @@
       stopExamTimer();
       progress = defaultProgress();
       state.cards = {};
+      state.attemptId = null;
+      state.attemptFilter = "all";
       exam = null;
+      paper = null;
       pendingTarget = null;
       try {
         window.localStorage.removeItem(storageKey);

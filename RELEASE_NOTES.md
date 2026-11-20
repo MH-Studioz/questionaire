@@ -1,3 +1,69 @@
+# Questionaire 0.7.0-alpha — Saved sittings release
+
+Released 20 November 2026.
+
+This release keeps the paper-and-ink interface and turns the 0.6.1 test papers into a record you can return to. Subject content, question banks, accounts and themes are unchanged.
+
+## Paper and exam history
+
+- Practice sets, mock papers, timed exams and misses retakes now write one **attempt** record: subject, paper, kind, start and finish time, time on the clock, score, total, flags, per-question answers and a topic breakdown.
+- The subject's Papers tab lists its **paper history** (latest 8 sittings) and the dashboard shows **Recent sittings** (latest 5) across every subject.
+- Each row carries the change since the previous sit of the same paper: `first sit`, `level`, `+N` / `−N`, or `—` when the two sittings had different question counts and raw scores are not comparable.
+- The best score for each paper is shown on its card.
+- Any sitting reopens as a **full review**: mastery by topic plus every question with your pick, the correct answer and the step-by-step explanation, filtered All / Misses.
+- Answers are stored as a compact bitmap string, so a 25-question paper costs about 25 characters rather than 25 objects. History is capped at the latest 60 sittings per profile.
+
+## Resume an unfinished paper
+
+- A sitting is snapshotted on every answer, flag and navigation step, not only at submit.
+- The dashboard and Papers tab show an **Unfinished sitting** strip with the paper, answered count and a Resume / Discard pair; the matching paper card switches its button to **Resume**.
+- Reloading, closing the tab or navigating away keeps the paper; mock papers keep their original deadline, so a resumed mock is still timed from when it started.
+- Resuming a mock whose clock has already run out grades it immediately with the saved answers.
+- Starting a paper while another sitting is unfinished asks before discarding the first one.
+
+## Topic mastery
+
+- Correct and total answers are now persisted per subject and topic (`topicStats`) as you answer, across practice, papers and exams.
+- A **Topic mastery** panel on the dashboard, on each subject's Papers tab and in the review queue lists the weakest topics with accuracy bars and a **Drill** button that opens practice filtered to that tag.
+- Mastery merges across devices by keeping the higher correct and total counts, so replaying a topic cannot lower a recorded score.
+
+## Review my misses
+
+- After a mock paper or timed exam: **Only misses** / **All answers**, misses outlined in the result, and **Retake N misses**.
+- After a practice set: **Review answers** and **Retake N misses** alongside the existing retake.
+- From any saved sitting: **Retake N misses**, **Sit again**, and **All papers**.
+- A misses retake is an untimed practice paper with instant feedback; it is saved as its own sitting and can be resumed like any other.
+- A missed question that is answered correctly later leaves the active mistake queue and is filed under **Later corrected** (new review filter and badge); missing it again puts it straight back.
+
+## SAT-style runner additions
+
+- **Question navigator** grid for practice sets, mocks and timed exams: answered, marked and current states, with jump-to-question.
+- **Mark for review** flag per question, carried into the saved attempt.
+- **Review before you finish/submit** screen listing every question as answered, blank or marked, with jump links, before the paper is graded.
+
+## Storage and sync
+
+- The existing local progress record gains `attempts`, `active`, `topicStats` and `corrected`; older records load without migration steps and unknown fields are ignored.
+- Cloud merge handles the new fields: attempts union by id, topic mastery by maximum, corrected misses by id, and an unfinished sitting by latest save time.
+- Guests and offline profiles keep their history on the device; clearing site data still removes it.
+
+## Release housekeeping
+
+- App version, footer, cache-busting query strings, README and these notes are on `0.7.0-alpha`.
+- New CSS for the history table, review panels, navigator, resume strip and mastery rows in all three themes.
+- No changes to subject data, the question pools, Firebase configuration or the package-free build.
+
+## Known limitations
+
+- History keeps the latest 60 sittings per profile and shows the latest 8 per subject; older sittings are discarded rather than exported.
+- Mock papers and timed exams remain section-sized (up to 25 questions), not full-length digital SAT modules.
+- Score history compares raw scores; there is no score estimate or projected band.
+- Cloud sync of the new records is implemented but still unverified against a real Firebase project.
+- Papers cannot be printed or exported yet, and the review list is not a separate shareable page.
+- Guest sessions and offline profiles remain device-local and are not a security boundary.
+
+---
+
 # Questionaire 0.6.1-alpha — Test papers release
 
 Released 20 November 2026.
