@@ -194,55 +194,6 @@
     ["What is a tax deduction?", "An expense that reduces taxable income", ["A tax payment", "A tax refund", "A penalty"], "Deductions lower the income on which tax is calculated."]
   ].map(function (fact) { return normaliseFact(fact, ["finance"]); });
 
-  const LANG_WORDS = {
-    chinese: [["你好", "hello"], ["谢谢", "thank you"], ["书", "book"], ["家", "house"], ["水", "water"], ["朋友", "friend"], ["学校", "school"], ["吃", "to eat"], ["好", "good"], ["说", "to speak"]],
-    spanish: [["hola", "hello"], ["gracias", "thank you"], ["libro", "book"], ["casa", "house"], ["agua", "water"], ["amigo", "friend"], ["escuela", "school"], ["comer", "to eat"], ["bueno", "good"], ["hablar", "to speak"]],
-    french: [["bonjour", "hello"], ["merci", "thank you"], ["livre", "book"], ["maison", "house"], ["eau", "water"], ["ami", "friend"], ["école", "school"], ["manger", "to eat"], ["bon", "good"], ["parler", "to speak"]],
-    german: [["hallo", "hello"], ["danke", "thank you"], ["Buch", "book"], ["Haus", "house"], ["Wasser", "water"], ["Freund", "friend"], ["Schule", "school"], ["essen", "to eat"], ["gut", "good"], ["sprechen", "to speak"]],
-    portuguese: [["olá", "hello"], ["obrigado", "thank you"], ["livro", "book"], ["casa", "house"], ["água", "water"], ["amigo", "friend"], ["escola", "school"], ["comer", "to eat"], ["bom", "good"], ["falar", "to speak"]],
-    hindi: [["नमस्ते", "hello"], ["धन्यवाद", "thank you"], ["किताब", "book"], ["घर", "house"], ["पानी", "water"], ["दोस्त", "friend"], ["स्कूल", "school"], ["खाना", "to eat"], ["अच्छा", "good"], ["बोलना", "to speak"]],
-    mandarin: [["你好", "hello"], ["谢谢", "thank you"], ["书", "book"], ["家", "house"], ["水", "water"], ["朋友", "friend"], ["学校", "school"], ["吃", "to eat"], ["好", "good"], ["说", "to speak"]],
-    japanese: [["こんにちは", "hello"], ["ありがとう", "thank you"], ["本", "book"], ["家", "house"], ["水", "water"], ["友達", "friend"], ["学校", "school"], ["食べる", "to eat"], ["良い", "good"], ["話す", "to speak"]],
-    arabic: [["مرحبا", "hello"], ["شكرا", "thank you"], ["كتاب", "book"], ["بيت", "house"], ["ماء", "water"], ["صديق", "friend"], ["مدرسة", "school"], ["يأكل", "to eat"], ["جيد", "good"], ["يتحدث", "to speak"]],
-    korean: [["안녕하세요", "hello"], ["감사합니다", "thank you"], ["책", "book"], ["집", "house"], ["물", "water"], ["친구", "friend"], ["학교", "school"], ["먹다", "to eat"], ["좋다", "good"], ["말하다", "to speak"]],
-    russian: [["привет", "hello"], ["спасибо", "thank you"], ["книга", "book"], ["дом", "house"], ["вода", "water"], ["друг", "friend"], ["школа", "school"], ["есть", "to eat"], ["хороший", "good"], ["говорить", "to speak"]],
-    italian: [["ciao", "hello"], ["grazie", "thank you"], ["libro", "book"], ["casa", "house"], ["acqua", "water"], ["amico", "friend"], ["scuola", "school"], ["mangiare", "to eat"], ["buono", "good"], ["parlare", "to speak"]],
-    hebrew: [["שלום", "hello"], ["תודה", "thank you"], ["ספר", "book"], ["בית", "house"], ["מים", "water"], ["חבר", "friend"], ["בית ספר", "school"], ["לאכול", "to eat"], ["טוב", "good"], ["לדבר", "to speak"]],
-    latin: [["salve", "hello"], ["gratias", "thank you"], ["liber", "book"], ["domus", "house"], ["aqua", "water"], ["amicus", "friend"], ["schola", "school"], ["edere", "to eat"], ["bonus", "good"], ["loqui", "to speak"]],
-    somali: [["salaam", "hello"], ["mahadsanid", "thank you"], ["buug", "book"], ["guri", "house"], ["biyo", "water"], ["saaxiib", "friend"], ["dugsi", "school"], ["cun", "to eat"]],
-    vietnamese: [["xin chào", "hello"], ["cảm ơn", "thank you"], ["sách", "book"], ["nhà", "house"], ["nước", "water"], ["bạn", "friend"], ["trường", "school"], ["ăn", "to eat"]],
-    turkish: [["merhaba", "hello"], ["teşekkürler", "thank you"], ["kitap", "book"], ["ev", "house"], ["su", "water"], ["arkadaş", "friend"], ["okul", "school"], ["yemek", "to eat"]],
-    swahili: [["habari", "hello"], ["asante", "thank you"], ["kitabu", "book"], ["nyumba", "house"], ["maji", "water"], ["rafiki", "friend"], ["shule", "school"], ["kula", "to eat"]],
-    polish: [["cześć", "hello"], ["dziękuję", "thank you"], ["książka", "book"], ["dom", "house"], ["woda", "water"], ["przyjaciel", "friend"], ["szkoła", "school"], ["jeść", "to eat"]],
-    dutch: [["hallo", "hello"], ["dank je", "thank you"], ["boek", "book"], ["huis", "house"], ["water", "water"], ["vriend", "friend"], ["school", "school"], ["eten", "to eat"]],
-    greek: [["γεια σου", "hello"], ["ευχαριστώ", "thank you"], ["βιβλίο", "book"], ["σπίτι", "house"], ["νερό", "water"], ["φίλος", "friend"], ["σχολείο", "school"], ["τρώω", "to eat"]],
-    "ancient-greek": [["χαῖρε", "hello"], ["εὐχαριστῶ", "thank you"], ["βιβλίον", "book"], ["οἶκος", "house"], ["ὕδωρ", "water"], ["φίλος", "friend"], ["διδασκαλεῖον", "school"], ["ἐσθίω", "to eat"], ["ἀγαθός", "good"], ["λέγω", "to speak"]],
-    bengali: [["নমস্কার", "hello"], ["ধন্যবাদ", "thank you"], ["বই", "book"], ["বাড়ি", "house"], ["পানি", "water"], ["বন্ধু", "friend"], ["স্কুল", "school"], ["খাওয়া", "to eat"]],
-    urdu: [["سلام", "hello"], ["شکریہ", "thank you"], ["کتاب", "book"], ["گھر", "house"], ["پانی", "water"], ["دوست", "friend"], ["اسکول", "school"], ["کھانا", "to eat"]],
-    persian: [["سلام", "hello"], ["ممنون", "thank you"], ["کتاب", "book"], ["خانه", "house"], ["آب", "water"], ["دوست", "friend"], ["مدرسه", "school"], ["خوردن", "to eat"]],
-    thai: [["สวัสดี", "hello"], ["ขอบคุณ", "thank you"], ["หนังสือ", "book"], ["บ้าน", "house"], ["น้ำ", "water"], ["เพื่อน", "friend"], ["โรงเรียน", "school"], ["กิน", "to eat"]],
-    indonesian: [["halo", "hello"], ["terima kasih", "thank you"], ["buku", "book"], ["rumah", "house"], ["air", "water"], ["teman", "friend"], ["sekolah", "school"], ["makan", "to eat"]],
-    tagalog: [["kumusta", "hello"], ["salamat", "thank you"], ["libro", "book"], ["bahay", "house"], ["tubig", "water"], ["kaibigan", "friend"], ["paaralan", "school"], ["kumain", "to eat"]],
-    swedish: [["hej", "hello"], ["tack", "thank you"], ["bok", "book"], ["hus", "house"], ["vatten", "water"], ["vän", "friend"], ["skola", "school"], ["äta", "to eat"]],
-    norwegian: [["hei", "hello"], ["takk", "thank you"], ["bok", "book"], ["hus", "house"], ["vann", "water"], ["venn", "friend"], ["skole", "school"], ["spise", "to eat"]],
-    danish: [["hej", "hello"], ["tak", "thank you"], ["bog", "book"], ["hus", "house"], ["vand", "water"], ["ven", "friend"], ["skole", "school"], ["spise", "to eat"]],
-    finnish: [["hei", "hello"], ["kiitos", "thank you"], ["kirja", "book"], ["talo", "house"], ["vesi", "water"], ["ystävä", "friend"], ["koulu", "school"], ["syödä", "to eat"]],
-    czech: [["ahoj", "hello"], ["děkuji", "thank you"], ["kniha", "book"], ["dům", "house"], ["voda", "water"], ["přítel", "friend"], ["škola", "school"], ["jíst", "to eat"]],
-    ukrainian: [["привіт", "hello"], ["дякую", "thank you"], ["книга", "book"], ["дім", "house"], ["вода", "water"], ["друг", "friend"], ["школа", "school"], ["їсти", "to eat"]],
-    romanian: [["salut", "hello"], ["mulțumesc", "thank you"], ["carte", "book"], ["casă", "house"], ["apă", "water"], ["prieten", "friend"], ["școală", "school"], ["a mânca", "to eat"]],
-    hungarian: [["szia", "hello"], ["köszönöm", "thank you"], ["könyv", "book"], ["ház", "house"], ["víz", "water"], ["barát", "friend"], ["iskola", "school"], ["enni", "to eat"]],
-    bulgarian: [["здравей", "hello"], ["благодаря", "thank you"], ["книга", "book"], ["дом", "house"], ["вода", "water"], ["приятел", "friend"], ["училище", "school"], ["ям", "to eat"]],
-    serbian: [["здраво", "hello"], ["хвала", "thank you"], ["књига", "book"], ["кућа", "house"], ["вода", "water"], ["пријатељ", "friend"], ["школа", "school"], ["јести", "to eat"]],
-    croatian: [["bok", "hello"], ["hvala", "thank you"], ["knjiga", "book"], ["kuća", "house"], ["voda", "water"], ["prijatelj", "friend"], ["škola", "school"], ["jesti", "to eat"]],
-    catalan: [["hola", "hello"], ["gràcies", "thank you"], ["llibre", "book"], ["casa", "house"], ["aigua", "water"], ["amic", "friend"], ["escola", "school"], ["menjar", "to eat"]],
-    amharic: [["ሰላም", "hello"], ["አመሰግናለሁ", "thank you"], ["መጽሐፍ", "book"], ["ቤት", "house"], ["ውሃ", "water"], ["ጓደኛ", "friend"], ["ትምህርት ቤት", "school"], ["መብላት", "to eat"]],
-    zulu: [["sawubona", "hello"], ["ngiyabonga", "thank you"], ["incwadi", "book"], ["indlu", "house"], ["amanzi", "water"], ["umngane", "friend"], ["isikole", "school"], ["ukudla", "to eat"]],
-    hausa: [["sannu", "hello"], ["na gode", "thank you"], ["littafi", "book"], ["gida", "house"], ["ruwa", "water"], ["aboki", "friend"], ["makaranta", "school"], ["ci", "to eat"]],
-    yoruba: [["bawo ni", "hello"], ["ẹ ṣé", "thank you"], ["ìwé", "book"], ["ilé", "house"], ["omi", "water"], ["ọ̀rẹ́", "friend"], ["ilé-ìwé", "school"], ["jẹ", "to eat"]],
-    igbo: [["ndewo", "hello"], ["daalụ", "thank you"], ["akwụkwọ", "book"], ["ụlọ", "house"], ["mmiri", "water"], ["enyi", "friend"], ["ụlọ akwụkwọ", "school"], ["rie", "to eat"]],
-    afrikaans: [["hallo", "hello"], ["dankie", "thank you"], ["boek", "book"], ["huis", "house"], ["water", "water"], ["vriend", "friend"], ["skool", "school"], ["eet", "to eat"]],
-    icelandic: [["halló", "hello"], ["takk", "thank you"], ["bók", "book"], ["hús", "house"], ["vatn", "water"], ["vinur", "friend"], ["skóli", "school"], ["borða", "to eat"]]
-  };
 
   /* --------------------------------------------------------------------------
      Classification
@@ -511,7 +462,8 @@
     const peerTitles = subject._peerTitles || [];
     const term = terms[index % terms.length];
     const companion = terms[(index + 1) % terms.length];
-    const mode = Math.floor(index / terms.length) % 6;
+    const modes = subject._conceptModes || [0, 1, 2, 3, 4, 5];
+    const mode = modes[Math.floor(index / terms.length) % modes.length];
     const wrongTerms = pickConcepts(peerTerms, term, index * 7 + 3, 5);
     const wrongTitles = pickConcepts(peerTitles, subject.title, index * 5 + 1, 5);
     let draft;
@@ -536,7 +488,7 @@
       };
     } else if (mode === 2) {
       draft = {
-        prompt: "Which term is a core idea in " + subject.title + "?",
+        prompt: "Which term belongs with \"" + companion + "\" in " + subject.title + "?",
         correct: term,
         wrongs: wrongTerms,
         hint: "Use the field's vocabulary, not a generic word from another subject.",
@@ -554,12 +506,12 @@
       };
     } else if (mode === 4) {
       draft = {
-        prompt: "Which statement names a working concept in " + subject.title + "?",
-        correct: term,
+        prompt: "In " + subject.title + ", which term is paired with \"" + term + "\"?",
+        correct: companion,
         wrongs: wrongTerms,
-        hint: "Pick the term that belongs to the subject's own vocabulary.",
-        explanation: ["A working concept in " + subject.title + " is " + term + "."],
-        tags: [subject.title, term]
+        hint: "Pick the partner term from the same course, not a neighbouring field.",
+        explanation: [companion + " and " + term + " are both studied in " + subject.title + "."],
+        tags: [subject.title, companion]
       };
     } else {
       const peerTerm = wrongTerms[0] || "a neighbouring idea";
@@ -586,6 +538,18 @@
      Build a question
      -------------------------------------------------------------------------- */
 
+  /* Language decks live in language-packs.js, the single source of truth for
+     the word bank, the flashcards and these questions. Entries are
+     [target, english, pronunciation]. */
+  function languageWords(subject) {
+    const packs = window.QuestionaireLanguagePacks;
+    const pack = packs && typeof packs.forSubject === "function" ? packs.forSubject(subject) : null;
+    if (!pack || !pack.words.length) return null;
+    return pack.words.map(function (word) {
+      return [word.target, word.english, word.pronunciation || ""];
+    });
+  }
+
   function generateQuestion(subject, index, domain) {
     const random = rng(hash(subject.id + ":" + index));
     let draft;
@@ -599,27 +563,31 @@
     } else if (domain === "cs") {
       draft = csQuestion(random, index);
     } else if (domain === "language") {
-      const key = Object.keys(LANG_WORDS)
-        .filter(function (language) {
-          return subject.id.indexOf(language) >= 0 || subject.title.toLowerCase().indexOf(language) >= 0;
-        })
-        .sort(function (a, b) { return b.length - a.length; })[0];
-      const words = key ? LANG_WORDS[key] : null;
+      const words = languageWords(subject);
       if (!words) {
         draft = conceptQuestion(subject, index);
       } else {
-        const entry = words[Math.floor(index / 4) % words.length];
-        const form = index % 4;
-        const meaningWrongs = words.filter(function (item) { return item !== entry; }).slice(0, 3).map(function (item) { return item[1]; });
-        const wordWrongs = words.filter(function (item) { return item !== entry; }).slice(0, 3).map(function (item) { return item[0]; });
+        const withPronunciation = words.filter(function (item) { return item[2]; });
+        const forms = withPronunciation.length > 3 ? 5 : 4;
+        const entry = words[Math.floor(index / forms) % words.length];
+        const form = index % forms;
+        const otherWords = words.filter(function (item) { return item !== entry; });
+        const meaningWrongs = otherWords.slice(0, 3).map(function (item) { return item[1]; });
+        const wordWrongs = otherWords.slice(0, 3).map(function (item) { return item[0]; });
         if (form === 0) {
           draft = { prompt: "What does \"" + entry[0] + "\" mean?", correct: entry[1], wrongs: meaningWrongs, hint: "Recall the core vocabulary item.", explanation: ["\"" + entry[0] + "\" means " + entry[1] + "."], tags: [subject.title, "vocabulary"] };
         } else if (form === 1) {
           draft = { prompt: "Which word means \"" + entry[1] + "\"?", correct: entry[0], wrongs: wordWrongs, hint: "Match the meaning to the target-language word.", explanation: ["\"" + entry[1] + "\" is " + entry[0] + "."], tags: [subject.title, "vocabulary"] };
         } else if (form === 2) {
           draft = { prompt: "Which " + subject.title + " word means \"" + entry[1] + "\"?", correct: entry[0], wrongs: wordWrongs, hint: "Choose the target-language term, not the English meaning.", explanation: ["\"" + entry[1] + "\" is " + entry[0] + "."], tags: [subject.title, "vocabulary"] };
-        } else {
+        } else if (form === 3) {
           draft = { prompt: "In " + subject.title + ", what does \"" + entry[0] + "\" mean?", correct: entry[1], wrongs: meaningWrongs, hint: "Translate the target-language word into English.", explanation: ["\"" + entry[0] + "\" means " + entry[1] + "."], tags: [subject.title, "vocabulary"] };
+        } else {
+          const pronunciationWrongs = withPronunciation
+            .filter(function (item) { return item !== entry; })
+            .slice(0, 3)
+            .map(function (item) { return item[2]; });
+          draft = { prompt: "How do you say \"" + entry[0] + "\" out loud?", correct: entry[2], wrongs: pronunciationWrongs, hint: "Match the stressed syllable to the target word.", explanation: ["\"" + entry[0] + "\" is pronounced " + entry[2] + ", and it means \"" + entry[1] + "\"."], tags: [subject.title, "pronunciation"] };
         }
       }
     } else {
@@ -642,16 +610,55 @@
     };
   }
 
+  /* AP world-language courses are exam courses. They drill their own course
+     terms (task types, literary periods, set texts) rather than beginner
+     vocabulary, so they get concept practice with peer-course distractors. */
+  function isApLanguageCourse(subject) {
+    return /^ap-/.test(subject.id) && subject.track === "languages";
+  }
+
+  function apLanguageTerms(subject) {
+    const tags = (subject.tags || []).filter(Boolean);
+    const terms = tags.length > 2 ? tags.slice(1) : tags;
+    return terms.length ? terms : [subject.title];
+  }
+
+  const apLanguageCourses = [];
+
   DATA.categories.forEach(function (category) {
     category.subjects.forEach(function (subject) {
       subject._seedQuestions = subject.questions.slice();
       subject._curatedCount = subject.questions.length;
       subject.questionTarget = Math.max(TARGET, subject.questions.length);
+      if (isApLanguageCourse(subject)) {
+        subject._bankDomain = "concept";
+        subject._terms = apLanguageTerms(subject);
+        /* Course terms such as "culture" are shared by every AP language, so
+           "which field covers this term" would have several right answers.
+           Keep the term-in-course modes only. */
+        subject._conceptModes = [0, 2, 4];
+        apLanguageCourses.push(subject);
+      }
       subject.bankDomain = subject._bankDomain || classify(subject);
       if (!subject.testConfig) {
         subject.testConfig = { questions: 20, secondsPerQuestion: 60, label: "Timed practice section" };
       }
     });
+  });
+
+  apLanguageCourses.forEach(function (subject) {
+    const peerTerms = [];
+    const peerTitles = [];
+    apLanguageCourses.forEach(function (other) {
+      if (other === subject) return;
+      other._terms.forEach(function (term) {
+        if (subject._terms.indexOf(term) >= 0) return;
+        if (peerTerms.indexOf(term) < 0) peerTerms.push(term);
+      });
+      if (peerTitles.indexOf(other.title) < 0) peerTitles.push(other.title);
+    });
+    subject._peerTerms = peerTerms;
+    subject._peerTitles = peerTitles;
   });
 
   function ensure(subject) {

@@ -13,16 +13,17 @@ This is the next-steps backlog after the 0.6-alpha release. The alpha is usable 
 - Test wrong password, duplicate email, reset email, blocked popup and Firestore permission failure.
 - Decide whether unverified email addresses may study or sync.
 
-### 2. Deepen language banks
+### 2. Deepen the language studio
 
-The current language banks are generated from 8–10 core words per language, so a 1,000-question vocabulary bank repeats 34–43 prompt templates (English grammar has 66). It is useful vocabulary drilling, not a full language course.
+Every vocabulary language now ships a 20-word starter deck with a pronunciation guide, a word bank and flashcards, and the practice bank adds a pronunciation prompt — 100 templates per language. That is a usable beginner study place, not yet a curriculum.
 
-- Expand each dictionary to 24–40 high-frequency words with parts of speech.
-- Add numbers, colours, family, food, days and common verbs.
+- Grow each deck from 20 words to 100+ with parts of speech and example sentences.
+- Add spaced repetition; the current flashcard session is a shuffle-and-reveal pass.
+- Add reading passages, short translations and listening exercises for intermediate levels.
 - Add a non-repeating question id strategy: word × prompt form × context.
-- Add reading passages and short translations for intermediate levels.
-- Add script/transliteration fields for non-Latin languages.
-- Add audio or pronunciation only after licensing and file-size review.
+- Add script/transliteration toggles for non-Latin languages.
+- Replace browser speech synthesis with recorded or licensed audio, after file-size review.
+- Add phrase and sentence decks so learners move from words to real conversation.
 - Keep AP language courses separate from beginner vocabulary; AP Spanish Literature is already classified as concept practice rather than vocabulary.
 
 ### 3. Finish account lifecycle
@@ -67,7 +68,7 @@ The current language banks are generated from 8–10 core words per language, so
 ## Known alpha limitations
 
 - Live Firebase auth and Firestore sync are implemented but not verified against a real project in this repository.
-- Language banks repeat templates; they are drills, not a complete curriculum.
+- Language decks cover 20 starter words per language; the pronunciation guides are English respellings, not IPA, and audio depends on device voices.
 - Offline profiles are not password protected.
 - No Firebase account deletion or email verification gate yet.
 - No automated test suite yet; verification is browser smoke testing plus static checks.

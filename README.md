@@ -35,7 +35,7 @@ Cloud login only works after the public Firebase config is filled in and the pro
 
 ## Release 0.6-alpha
 
-The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It covers the real login system, removal of guest profiles, offline fallback, the 443-subject catalogue, 47 languages, AP/exam banks, language-bank fixes, dead-code cleanup, and the known alpha limitations.
+The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It covers the real login system, removal of guest profiles, offline fallback, the 443-subject catalogue, 47 languages, the language studio (word decks with pronunciation plus flashcards), AP/exam banks, language-bank fixes, dead-code cleanup, and the known alpha limitations.
 
 ## Files
 
@@ -50,6 +50,7 @@ The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It cover
 | `new-subjects.js` | Sixteen additional Mathematics, Science, Humanities, Language and Study Vault subjects |
 | `expanded-core.js` | Factory and new categories for the large subject catalogue |
 | `expanded-*.js` | Mathematics, science, engineering, health, arts, humanities, social-science and language catalogue data |
+| `language-packs.js` | High-frequency word decks with plain-English pronunciation guides for all 46 vocabulary languages |
 | `subject-banks.js` | Lazy 1,000-question generator that fills every subject bank |
 | `firebase-config.js` | Public Firebase web config (blank until the project exists) |
 | `firebase-sync.js` | Email/password + Google auth, password reset, owner-only Firestore reads and writes |
@@ -77,7 +78,7 @@ The AP shelf covers all 42 courses in the College Board catalogue for 2026-27: t
 
 The banks are generated from seeded item families and are stable across reloads, so progress ids do not change. They are practice drills, not official College Board, ACT, GED or ETS questions. Official full-length tests should still be taken through the testing companies.
 
-Every language has curated anchor questions, study cards and tips; the headline languages also have vocabulary drills built into their banks.
+Every language has curated anchor questions, study cards and tips. All 46 vocabulary languages also have a **language studio**: a word bank of 20 high-frequency words with a plain-English pronunciation guide, a Listen button and per-word mastery, plus a flashcards practice mode that shuffles the deck and tracks what you actually know. The practice bank draws on the same deck and asks meaning, recall, which-word and pronunciation questions. English Language is grammar practice and has no word deck, and AP world-language courses practise their own course terms rather than the beginner deck.
 
 The language shelf includes Spanish, French, German, Portuguese, Hindi, Mandarin Chinese, Japanese, Arabic, English Language, Korean, Russian, Italian, Somali, Vietnamese, Turkish, Swahili, Polish, Dutch, Greek, Bengali, Urdu, Persian, Thai, Indonesian, Tagalog, Swedish, Norwegian, Danish, Finnish, Czech, Ukrainian, Romanian, Hungarian, Bulgarian, Serbian, Croatian, Catalan, Amharic, Zulu, Hausa, Yoruba, Igbo, Hebrew, Latin, Ancient Greek, Afrikaans and Icelandic.
 
@@ -125,6 +126,7 @@ The old `questionaire.progress.v1` guest record is no longer an active identity 
 ### Merge policy
 
 - Questions: union by question id; keep the highest attempt count and the first correct timestamp.
+- Vocabulary: union by subject and word; a word stays known if either side knows it, with the highest repetition count and the latest review date.
 - Bookmarks and mistakes: union the id sets, dropping ids that are no longer valid; generated `<subject-id>-g0001` ids survive before their lazy bank is loaded.
 - XP: merge with `max(local, cloud)` so replaying a question cannot double-count it.
 - Streak: keep the latest study date and the best streak; the current streak is normalized on load.

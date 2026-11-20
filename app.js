@@ -31,6 +31,7 @@
 
   const TABS = [
     { id: "practice", label: "Practice", icon: "list-checks" },
+    { id: "words", label: "Word bank", icon: "languages" },
     { id: "study", label: "Study bank", icon: "book-open" },
     { id: "tips", label: "Tips & hacks", icon: "lightbulb" },
     { id: "videos", label: "Video lessons", icon: "play" }
@@ -178,6 +179,7 @@
     routeKey: "",
     filters: {},
     cards: {},
+    decks: {},
     reviewFilter: "all"
   };
 
@@ -209,6 +211,7 @@
     return {
       version: 1,
       answered: {},
+      vocab: {},
       xp: 0,
       streak: 0,
       bestStreak: 0,
@@ -269,6 +272,7 @@
     if (!value || typeof value !== "object") return false;
     return Boolean(
       (value.answered && Object.keys(value.answered).length) ||
+      (value.vocab && Object.keys(value.vocab).length) ||
       Number(value.xp) ||
       Number(value.streak) ||
       (Array.isArray(value.bookmarks) && value.bookmarks.length) ||
@@ -327,9 +331,35 @@
     const mistakes = Array.from(new Set((left.mistakes || []).concat(right.mistakes || []))).filter(isKnownQuestionId);
     const lastStudyDate = [left.lastStudyDate, right.lastStudyDate].filter(Boolean).sort().pop() || null;
 
+    const vocab = {};
+    [left.vocab || {}, right.vocab || {}].forEach(function (source) {
+      Object.keys(source).forEach(function (subjectId) {
+        const bucket = vocab[subjectId] || (vocab[subjectId] = {});
+        Object.keys(source[subjectId] || {}).forEach(function (target) {
+          const a = bucket[target];
+          const b = source[subjectId][target];
+          if (!b) return;
+          if (!a) {
+            bucket[target] = {
+              known: Boolean(b.known),
+              reps: Number(b.reps) || 0,
+              last: b.last || null
+            };
+            return;
+          }
+          bucket[target] = {
+            known: Boolean(a.known || b.known),
+            reps: Math.max(Number(a.reps) || 0, Number(b.reps) || 0),
+            last: [a.last, b.last].filter(Boolean).sort().pop() || null
+          };
+        });
+      });
+    });
+
     return {
       version: 1,
       answered: answered,
+      vocab: vocab,
       xp: Math.max(Number(left.xp) || 0, Number(right.xp) || 0),
       streak: Math.max(Number(left.streak) || 0, Number(right.streak) || 0),
       bestStreak: Math.max(Number(left.bestStreak) || 0, Number(right.bestStreak) || 0),
@@ -371,6 +401,7 @@
     if (!Array.isArray(merged.mistakes)) merged.mistakes = [];
     merged.bookmarks = merged.bookmarks.filter(isKnownQuestionId);
     merged.mistakes = merged.mistakes.filter(isKnownQuestionId);
+    if (!merged.vocab || typeof merged.vocab !== "object") merged.vocab = {};
     merged.xp = Number(merged.xp) || 0;
     merged.streak = Number(merged.streak) || 0;
     merged.bestStreak = Number(merged.bestStreak) || 0;
@@ -387,6 +418,7 @@
     progress = defaultProgress();
     loadProgress();
     state.cards = {};
+    state.decks = {};
     exam = null;
     pendingTarget = null;
     normalizeStreak();
@@ -789,6 +821,249 @@
   }
 
   /* --------------------------------------------------------------------------
+     Language studio — word decks, pronunciation and flashcards
+     -------------------------------------------------------------------------- */
+
+  function languagePack(subject) {
+    const packs = window.QuestionaireLanguagePacks;
+    return packs && typeof packs.forSubject === "function" ? packs.forSubject(subject) : null;
+  }
+
+  function packWords(subject) {
+    const pack = languagePack(subject);
+    return pack ? pack.words : [];
+  }
+
+  function vocabRecord(subjectId, target) {
+    const bucket = (progress.vocab && progress.vocab[subjectId]) || {};
+    return bucket[target] || null;
+  }
+
+  function vocabKnownCount(subject) {
+    const bucket = (progress.vocab && progress.vocab[subject.id]) || {};
+    let known = 0;
+    packWords(subject).forEach(function (word) {
+      if (bucket[word.target] && bucket[word.target].known) known += 1;
+    });
+    return known;
+  }
+
+  function markVocabulary(subject, target, known) {
+    if (!progress.vocab || typeof progress.vocab !== "object") progress.vocab = {};
+    const bucket = progress.vocab[subject.id] || (progress.vocab[subject.id] = {});
+    const record = bucket[target] || { known: false, reps: 0, last: null };
+    const firstTimeKnown = known && !record.known;
+    record.known = known;
+    record.reps = (Number(record.reps) || 0) + 1;
+    record.last = new Date().toISOString();
+    bucket[target] = record;
+    progress.xp = (progress.xp || 0) + (firstTimeKnown ? XP_PER_CORRECT : XP_PER_ATTEMPT);
+    touchStreak();
+    saveProgress();
+    return record;
+  }
+
+  function speak(text, code, interrupt) {
+    if (!window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== "function") {
+      toast("This browser has no speech engine — use the pronunciation guide instead.", "is-warn");
+      return false;
+    }
+    try {
+      if (interrupt) window.speechSynthesis.cancel();
+      const utterance = new window.SpeechSynthesisUtterance(text);
+      utterance.lang = code || "en-US";
+      utterance.rate = 0.8;
+      const prefix = String(utterance.lang).slice(0, 2).toLowerCase();
+      const voices = window.speechSynthesis.getVoices();
+      const match = voices.find(function (voice) {
+        return String(voice.lang || "").toLowerCase().indexOf(prefix) === 0;
+      });
+      if (match) utterance.voice = match;
+      window.speechSynthesis.speak(utterance);
+      return true;
+    } catch (error) {
+      toast("Audio could not play in this browser.", "is-warn");
+      return false;
+    }
+  }
+
+  function speakWord(text, code) {
+    if (!text) return;
+    speak(text, code, true);
+  }
+
+  function speakDeck(subject) {
+    const words = packWords(subject);
+    const pack = languagePack(subject);
+    if (!words.length || !pack) return;
+    if (!window.speechSynthesis) {
+      speak("", pack.code, true);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    words.forEach(function (word) {
+      speak(word.target, pack.code, false);
+    });
+  }
+
+  function shuffledIndices(length) {
+    const order = [];
+    for (let index = 0; index < length; index += 1) order.push(index);
+    for (let index = order.length - 1; index > 0; index -= 1) {
+      const swap = Math.floor(Math.random() * (index + 1));
+      const value = order[index];
+      order[index] = order[swap];
+      order[swap] = value;
+    }
+    return order;
+  }
+
+  function vocabDeck(subject) {
+    const words = packWords(subject);
+    let deck = state.decks[subject.id];
+    if (!deck || deck.size !== words.length) {
+      deck = state.decks[subject.id] = {
+        size: words.length,
+        order: shuffledIndices(words.length),
+        index: 0,
+        revealed: false,
+        known: 0,
+        again: 0
+      };
+    }
+    return deck;
+  }
+
+  function vocabularyCallout(subject) {
+    if (!packWords(subject).length) return "";
+    return (
+      '<div class="vocab-callout card">' +
+      '<span class="vocab-callout-icon"><i data-lucide="languages"></i></span>' +
+      '<div><h3>Word deck &amp; flashcards</h3>' +
+      "<p>Learn the highest-frequency " + esc(subject.title) + " words with pronunciation guides, then drill them as flashcards.</p></div>" +
+      '<div class="vocab-callout-actions">' +
+      '<a class="btn btn-ghost btn-sm" href="#/subject/' + esc(subject.id) + '/words"><i data-lucide="book-open"></i>Open word bank</a>' +
+      '<button type="button" class="btn btn-teal btn-sm" data-action="open-flashcards" data-subject="' + esc(subject.id) + '"><i data-lucide="layers"></i>Flashcards</button>' +
+      "</div></div>"
+    );
+  }
+
+  function wordsTabHTML(entry) {
+    const subject = entry.subject;
+    const pack = languagePack(subject);
+    if (!pack) {
+      return emptyState("languages", "No word deck for this subject", "English Language practises grammar, not vocabulary. Practice and study cards still work.", "");
+    }
+    const words = pack.words;
+    const total = words.length;
+    const known = vocabKnownCount(subject);
+    const pct = total ? Math.round((known / total) * 100) : 0;
+    let cursor = 0;
+
+    const themes = pack.groups.map(function (group) {
+      const rows = group[1].map(function () {
+        const word = words[cursor];
+        const index = cursor;
+        cursor += 1;
+        const record = vocabRecord(subject.id, word.target);
+        const isKnown = Boolean(record && record.known);
+        return (
+          '<li class="word-row' + (isKnown ? " is-known" : "") + '" data-word-row="' + esc(subject.id + "-w-" + index) + '">' +
+          '<div class="word-main"><span class="word-target">' + esc(word.target) + "</span>" +
+          '<span class="word-pron">' + esc(word.pronunciation) + "</span></div>" +
+          '<span class="word-english">' + esc(word.english) + "</span>" +
+          '<div class="word-actions">' +
+          '<button type="button" class="word-audio" data-action="speak" data-word="' + esc(word.target) + '" data-lang="' + esc(pack.code) + '" aria-label="Listen to ' + esc(word.target) + '" title="Listen">' +
+          '<i data-lucide="volume-2"></i><span>Listen</span></button>' +
+          '<button type="button" class="word-known" data-action="vocab" data-subject="' + esc(subject.id) + '" data-word="' + esc(word.target) + '" aria-pressed="' + isKnown + '" title="' + (isKnown ? "Send back to practice" : "Mark as known") + '">' +
+          '<i data-lucide="' + (isKnown ? "check-circle" : "circle") + '"></i><span>' + (isKnown ? "Known" : "Learn") + "</span></button>" +
+          "</div></li>"
+        );
+      }).join("");
+      return (
+        '<section class="word-theme">' +
+        '<div class="word-theme-head"><h3>' + esc(group[0]) + '</h3><span>' + group[1].length + " words</span></div>" +
+        '<ul class="word-list">' + rows + "</ul></section>"
+      );
+    }).join("");
+
+    return (
+      '<div class="wordbank-head card">' +
+      '<div class="wordbank-copy">' +
+      '<span class="eyebrow">High-frequency starter deck</span>' +
+      "<h2>" + esc(subject.title) + " · " + total + " words</h2>" +
+      "<p>Everyday words first, each with a plain-English pronunciation guide. Tap Listen, say it out loud, then mark it known.</p></div>" +
+      '<div class="wordbank-score"><strong>' + known + "/" + total + "</strong><span>words known</span></div>" +
+      '<div class="wordbank-progress"><div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div></div>' +
+      '<div class="wordbank-actions">' +
+      '<button type="button" class="btn btn-primary" data-action="open-flashcards" data-subject="' + esc(subject.id) + '"><i data-lucide="layers"></i>Start flashcards</button>' +
+      '<button type="button" class="btn btn-ghost" data-action="speak-all" data-subject="' + esc(subject.id) + '"><i data-lucide="volume-2"></i>Hear the deck</button>' +
+      "</div></div>" +
+      '<div class="word-themes">' + themes + "</div>"
+    );
+  }
+
+  function flashcardsHTML(entry) {
+    const subject = entry.subject;
+    const words = packWords(subject);
+    if (!words.length) {
+      return emptyState("layers", "No flashcards for this subject", "Flashcards run on the high-frequency word decks. English Language practises grammar instead.", "");
+    }
+    const deck = vocabDeck(subject);
+    const total = deck.order.length;
+
+    if (deck.index >= total) {
+      return (
+        '<div class="deck-summary card">' +
+        '<span class="eyebrow">Deck complete</span>' +
+        "<h2>" + esc(subject.title) + " — " + total + " cards</h2>" +
+        '<div class="deck-score">' +
+        '<div><strong>' + deck.known + "</strong><span>got it</span></div>" +
+        '<div><strong>' + deck.again + "</strong><span>still learning</span></div>" +
+        '<div><strong>' + vocabKnownCount(subject) + "/" + words.length + "</strong><span>known overall</span></div>" +
+        "</div>" +
+        '<div class="deck-actions">' +
+        '<button type="button" class="btn btn-primary" data-action="flash-restart" data-subject="' + esc(subject.id) + '"><i data-lucide="shuffle"></i>Shuffle and go again</button>' +
+        '<a class="btn btn-ghost" href="#/subject/' + esc(subject.id) + '/words"><i data-lucide="book-open"></i>Word bank</a>' +
+        "</div></div>"
+      );
+    }
+
+    const word = words[deck.order[deck.index]];
+    const record = vocabRecord(subject.id, word.target);
+    const pct = Math.round((deck.index / total) * 100);
+    const back = deck.revealed
+      ? '<span class="flash-pron">' + esc(word.pronunciation) + "</span>" +
+        '<span class="flash-english">' + esc(word.english) + "</span>"
+      : '<span class="flash-reveal">Tap to reveal the meaning</span>';
+
+    return (
+      '<div class="deck">' +
+      '<div class="deck-head">' +
+      '<span class="deck-count">Card ' + (deck.index + 1) + " of " + total + "</span>" +
+      '<span class="deck-theme">' + esc(word.theme) + "</span>" +
+      '<button type="button" class="btn btn-ghost btn-sm" data-action="flash-restart" data-subject="' + esc(subject.id) + '"><i data-lucide="shuffle"></i>Reshuffle</button>' +
+      "</div>" +
+      '<div class="progress deck-progress"><div class="progress-bar" style="width:' + pct + '%"></div></div>' +
+      '<button type="button" class="flashcard' + (deck.revealed ? " is-revealed" : "") + '" data-action="flip-card" data-subject="' + esc(subject.id) + '" aria-label="' + (deck.revealed ? "Hide the answer" : "Reveal the answer") + '">' +
+      '<span class="flash-word">' + esc(word.target) + "</span>" +
+      back +
+      "</button>" +
+      '<div class="deck-actions">' +
+      '<button type="button" class="word-audio" data-action="speak" data-word="' + esc(word.target) + '" data-lang="' + esc(languagePack(subject).code) + '" title="Listen">' +
+      '<i data-lucide="volume-2"></i>Listen</button>' +
+      (deck.revealed
+        ? '<button type="button" class="btn btn-ghost" data-action="flash-again" data-subject="' + esc(subject.id) + '"><i data-lucide="rotate-ccw"></i>Still learning</button>' +
+          '<button type="button" class="btn btn-teal" data-action="flash-known" data-subject="' + esc(subject.id) + '"><i data-lucide="check"></i>Got it</button>'
+        : '<button type="button" class="btn btn-primary" data-action="flip-card" data-subject="' + esc(subject.id) + '"><i data-lucide="eye"></i>Reveal</button>') +
+      "</div>" +
+      '<p class="deck-note">' +
+      esc(record && record.known ? "You already marked this one as known — confirm it or send it back to practice." : "Say it out loud before you reveal. Recall beats recognition.") +
+      "</p></div>"
+    );
+  }
+
+  /* --------------------------------------------------------------------------
      Chrome and sidebar
      -------------------------------------------------------------------------- */
 
@@ -1060,6 +1335,7 @@
 
     if (changed) {
       state.cards = {};
+      state.decks = {};
       renderSidebar();
     }
     if (exam && !examMatches(route)) {
@@ -1334,12 +1610,14 @@
     }).length;
 
     const visibleTabs = TABS.filter(function (tab) {
+      if (tab.id === "words") return packWords(subject).length > 0;
       return tab.id !== "videos" || subject.videos.length > 0;
     });
 
     const tabs = visibleTabs.map(function (tab) {
       let count = 0;
       if (tab.id === "practice") count = subject.questions.length;
+      if (tab.id === "words") count = packWords(subject).length;
       if (tab.id === "study") count = subject.study.length;
       if (tab.id === "tips") count = subject.tips.length;
       if (tab.id === "videos") count = subject.videos.length;
@@ -1352,7 +1630,8 @@
     }).join("");
 
     let panel = "";
-    if (state.route.tab === "study") panel = studyTabHTML(subject);
+    if (state.route.tab === "words") panel = wordsTabHTML(entry);
+    else if (state.route.tab === "study") panel = studyTabHTML(subject);
     else if (state.route.tab === "tips") panel = tipsTabHTML(subject);
     else if (state.route.tab === "videos" && subject.videos.length) panel = videosTabHTML(subject);
     else panel = practiceTabHTML(entry);
@@ -1393,6 +1672,7 @@
     const subject = entry.subject;
     const filters = getFilters(subject.id);
     const questions = filteredQuestions(subject, filters.difficulty);
+    const deckSize = packWords(subject).length;
     let ordered = questions;
     if (focusQid) {
       const focused = questions.find(function (question) { return question.id === focusQid; });
@@ -1419,11 +1699,16 @@
       '<div class="mode-switch" role="group" aria-label="Practice mode">' +
       '<button type="button" class="mode-btn ' + (filters.mode === "practice" ? "active" : "") + '" data-action="mode" data-subject="' + esc(subject.id) + '" data-mode="practice">' +
       '<i data-lucide="zap"></i>Practice</button>' +
+      (deckSize
+        ? '<button type="button" class="mode-btn ' + (filters.mode === "flashcards" ? "active" : "") + '" data-action="mode" data-subject="' + esc(subject.id) + '" data-mode="flashcards">' +
+          '<i data-lucide="layers"></i>Flashcards</button>'
+        : "") +
       '<button type="button" class="mode-btn ' + (filters.mode === "exam" ? "active" : "") + '" data-action="mode" data-subject="' + esc(subject.id) + '" data-mode="exam">' +
       '<i data-lucide="timer"></i>Exam</button>' +
       "</div></div>";
 
     if (filters.mode === "exam") return toolbar + examTabHTML(entry, questions);
+    if (filters.mode === "flashcards") return toolbar + flashcardsHTML(entry);
 
     if (!questions.length) {
       return toolbar + emptyState("filter", "No questions at this difficulty", "Try another filter — this bank has " + subject.questions.length + " questions in total.", "");
@@ -1764,6 +2049,7 @@
       : "";
 
     return (
+      vocabularyCallout(subject) +
       callout +
       '<div class="study-grid">' + subject.study.map(function (card) {
         return (
@@ -2089,6 +2375,18 @@
         text: subject.blurb + " " + subject.tags.join(" "),
         tags: subject.tags
       });
+      packWords(subject).forEach(function (word, index) {
+        entries.push({
+          type: "Word",
+          icon: "languages",
+          subjectId: subject.id,
+          tab: "words",
+          wordId: subject.id + "-w-" + index,
+          title: word.target + " — " + word.english,
+          text: word.target + " " + word.english + " " + word.pronunciation + " " + word.theme,
+          tags: [word.theme, "vocabulary"]
+        });
+      });
       subject.questions.forEach(function (question) {
         entries.push({
           type: "Question",
@@ -2208,7 +2506,8 @@
       focusQid = result.qid;
       getFilters(result.subjectId).limit = 20;
       pendingTarget = '[data-card="' + result.qid + '"]';
-    } else if (result.studyId) pendingTarget = '[data-study="' + result.studyId + '"]';
+    } else if (result.wordId) pendingTarget = '[data-word-row="' + result.wordId + '"]';
+    else if (result.studyId) pendingTarget = '[data-study="' + result.studyId + '"]';
     else if (result.tipId) pendingTarget = '[data-tip="' + result.tipId + '"]';
     else pendingTarget = null;
 
@@ -2268,6 +2567,69 @@
     if (action === "focus-search") {
       searchInput.focus();
       searchInput.select();
+      return;
+    }
+
+    if (action === "speak") {
+      speakWord(trigger.getAttribute("data-word"), trigger.getAttribute("data-lang"));
+      return;
+    }
+
+    if (action === "speak-all" && subjectId) {
+      const info = SUBJECT_MAP.get(subjectId);
+      if (info) speakDeck(info.subject);
+      return;
+    }
+
+    if (action === "vocab" && subjectId) {
+      const info = SUBJECT_MAP.get(subjectId);
+      const word = trigger.getAttribute("data-word");
+      if (!info || !word) return;
+      const record = vocabRecord(subjectId, word);
+      const nowKnown = !(record && record.known);
+      markVocabulary(info.subject, word, nowKnown);
+      paint();
+      toast(nowKnown ? "Marked as known — +" + XP_PER_CORRECT + " XP." : "Back in the learning pile.", nowKnown ? "" : "is-warn");
+      return;
+    }
+
+    if (action === "open-flashcards" && subjectId) {
+      const filters = getFilters(subjectId);
+      filters.mode = "flashcards";
+      filters.limit = 20;
+      focusQid = null;
+      stopExamTimer();
+      exam = null;
+      go("#/subject/" + subjectId + "/practice");
+      return;
+    }
+
+    if (action === "flip-card" && subjectId) {
+      const deck = state.decks[subjectId];
+      if (!deck) return;
+      deck.revealed = !deck.revealed;
+      paint();
+      return;
+    }
+
+    if ((action === "flash-known" || action === "flash-again") && subjectId) {
+      const info = SUBJECT_MAP.get(subjectId);
+      const deck = state.decks[subjectId];
+      if (!info || !deck) return;
+      const word = packWords(info.subject)[deck.order[deck.index]];
+      if (!word) return;
+      markVocabulary(info.subject, word.target, action === "flash-known");
+      if (action === "flash-known") deck.known += 1;
+      else deck.again += 1;
+      deck.index += 1;
+      deck.revealed = false;
+      paint();
+      return;
+    }
+
+    if (action === "flash-restart" && subjectId) {
+      delete state.decks[subjectId];
+      paint();
       return;
     }
 

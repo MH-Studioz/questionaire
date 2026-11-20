@@ -3200,7 +3200,7 @@ const STUDY_DATA = {
     {
       id: "languages",
       title: "Languages",
-      tagline: "Nine languages, one method: hear it, say it, then read the grammar.",
+      tagline: "Forty-seven languages, one method: hear it, say it, then read the grammar.",
       icon: "quote",
       accent: "sky",
       subjects: [
