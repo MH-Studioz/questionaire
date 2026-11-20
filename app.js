@@ -827,44 +827,57 @@
      -------------------------------------------------------------------------- */
 
   function subjectTopics(subject) {
-    const topics = new Map();
-    subject.questions.forEach(function (question) {
-      (question.tags || []).forEach(function (rawTag) {
-        const tag = String(rawTag || "").trim();
-        /* Skip the course's own name ("Spanish", "Calculus") as a topic. */
-        if (!tag || subject.title.toLowerCase().indexOf(tag.toLowerCase()) >= 0) return;
-        const steps = Array.isArray(question.explanation) ? question.explanation.length : 0;
-        const current = topics.get(tag);
-        if (!current) {
-          topics.set(tag, { tag: tag, total: 1, sample: question, steps: steps });
-          return;
-        }
-        current.total += 1;
-        if (steps > current.steps) {
-          current.sample = question;
-          current.steps = steps;
-        }
-      });
-    });
-    /* Never show the same worked example twice: use another question on that
-       topic, or drop the topic when the bank has no second example. */
-    const used = new Set();
-    return Array.from(topics.values())
-      .sort(function (a, b) { return b.total - a.total || a.tag.localeCompare(b.tag); })
-      .filter(function (lesson) {
-        if (!used.has(lesson.sample.id)) {
-          used.add(lesson.sample.id);
-          return true;
-        }
-        const alternative = subject.questions.find(function (question) {
-          return !used.has(question.id) && (question.tags || []).indexOf(lesson.tag) >= 0;
+    function build(skipOwnName) {
+      const topics = new Map();
+      subject.questions.forEach(function (question) {
+        (question.tags || []).forEach(function (rawTag) {
+          const tag = String(rawTag || "").trim();
+          /* Skip the course's own name ("Spanish", "Calculus") as a topic. */
+          if (!tag) return;
+          if (skipOwnName && subject.title.toLowerCase().indexOf(tag.toLowerCase()) >= 0) return;
+          const steps = Array.isArray(question.explanation) ? question.explanation.length : 0;
+          const current = topics.get(tag);
+          if (!current) {
+            topics.set(tag, { tag: tag, total: 1, sample: question, steps: steps });
+            return;
+          }
+          current.total += 1;
+          if (steps > current.steps) {
+            current.sample = question;
+            current.steps = steps;
+          }
         });
-        if (!alternative) return false;
-        lesson.sample = alternative;
-        used.add(alternative.id);
-        return true;
-      })
-      .slice(0, 8);
+      });
+      /* Never show the same worked example twice: use another question on that
+         topic, or drop the topic when the bank has no second example. */
+      const used = new Set();
+      return Array.from(topics.values())
+        .sort(function (a, b) { return b.total - a.total || a.tag.localeCompare(b.tag); })
+        .filter(function (lesson) {
+          if (!used.has(lesson.sample.id)) {
+            used.add(lesson.sample.id);
+            return true;
+          }
+          const alternative = subject.questions.find(function (question) {
+            return !used.has(question.id) && (question.tags || []).indexOf(lesson.tag) >= 0;
+          });
+          if (!alternative) return false;
+          lesson.sample = alternative;
+          used.add(alternative.id);
+          return true;
+        });
+    }
+
+    /* Most subjects keep their curated topic tags. Subjects whose only tag is
+       their own discipline name would lose every deep dive, so fall back to
+       those tags rather than showing an empty Learn tab. */
+    let lessons = build(true);
+    if (lessons.length < 2) {
+      lessons = build(false).filter(function (lesson) {
+        return lesson.tag.toLowerCase() !== subject.title.toLowerCase();
+      });
+    }
+    return lessons.slice(0, 8);
   }
 
   function youTubeSearch(query) {

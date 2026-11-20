@@ -35,7 +35,7 @@ Cloud login only works after the public Firebase config is filled in and the pro
 
 ## Release 0.6-alpha
 
-The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It covers the real login system, removal of guest profiles, offline fallback, the 443-subject catalogue, 47 languages, the language studio (word decks with pronunciation plus flashcards), AP/exam banks, language-bank fixes, dead-code cleanup, and the known alpha limitations.
+The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It covers the real login system, guest mode, the learning mode, the 443-subject catalogue, 47 languages, the language studio (word decks with pronunciation plus flashcards), AP/exam banks, the `questions/` pool restructure, language-bank fixes, dead-code cleanup, and the known alpha limitations.
 
 ## Files
 
@@ -51,7 +51,9 @@ The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It cover
 | `expanded-core.js` | Factory and new categories for the large subject catalogue |
 | `expanded-*.js` | Mathematics, science, engineering, health, arts, humanities, social-science and language catalogue data |
 | `language-packs.js` | High-frequency word decks with plain-English pronunciation guides for all 46 vocabulary languages |
-| `subject-banks.js` | Lazy 1,000-question generator that fills every subject bank |
+| `subject-banks.js` | Lazy 1,000-question generator; resolves each subject's pool from `questions/` |
+| `questions/registry.js` | Pool registry and subject-id → pool mapping |
+| `questions/<area>/<pool>.js` | One question pool per subject family (music, chemistry, history, study skills, each exam…) |
 | `firebase-config.js` | Public Firebase web config (blank until the project exists) |
 | `firebase-sync.js` | Email/password + Google auth, password reset, owner-only Firestore reads and writes |
 | `firestore.rules` | `users/{uid}` owner-only rules |
@@ -68,7 +70,9 @@ The repository is self-contained: every file the page loads is tracked, there is
 
 Eleven sections: AP Courses, Exam Prep, Mathematics, Sciences, Humanities, Engineering & Computing, Health & Medicine, Creative Arts, Social Sciences & Law, Languages and the Universal Study Vault. The catalogue has 443 subjects and a 485,000-question target: 1,000 questions per subject, and 2,000 for each of the 42 AP courses.
 
-Every subject keeps its curated anchor questions first. The remaining questions are built lazily by `subject-banks.js` when a subject is opened or pulled into the review queue, so the static page does not boot all 485,000 cards at once. Search indexes a 20-question sample per subject. Generated ids use the stable `<subject-id>-g0001` format, which lets progress, bookmarks and mistakes survive before that subject's bank is materialised. The generated items are subject-specific practice drills rather than official exam questions.
+Every subject keeps its curated anchor questions first. The remaining questions are built lazily by `subject-banks.js` when a subject is opened or pulled into the review queue, so the static page does not boot all 485,000 cards at once.
+
+Generated questions come from the subject's own pool under `questions/`, never from a broad "science" or "arts" bucket. `questions/registry.js` maps every subject id to one pool: subject ids are listed explicitly in the pool file, so GED cannot inherit art-history facts and AP World History cannot inherit binary arithmetic. Math, data, calculus, computing, physics and language courses keep their numeric and vocabulary generators; physics mixes its pool with calculation items. Music also generates interval, key-signature, relative-key and scale-degree questions from music theory rather than repeating a short fact list. Search indexes a 20-question sample per subject. Generated ids use the stable `<subject-id>-g0001` format, which lets progress, bookmarks and mistakes survive before that subject's bank is materialised. The generated items are subject-specific practice drills rather than official exam questions.
 
 The AP shelf covers all 42 courses in the College Board catalogue for 2026-27: the Arts, English, History and Social Sciences, Math and Computer Science, Sciences, World Languages, AP Capstone and the two AP Career Kickstart courses. Each AP course has two curated exam-style questions, two study cards and two tips, and its bank is expanded to 2,000 questions by the shared generator. AP world-language courses ask about their own course terms rather than beginner vocabulary. AP Networking is not included because it is a 2026-27 pilot and does not join the catalog until Fall 2027.
 

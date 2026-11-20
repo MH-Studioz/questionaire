@@ -108,6 +108,10 @@ Each deck is a 20-word starter set, so a 1,000-question vocabulary bank repeats 
 - Arts subjects no longer share one pool. Music courses draw music-theory facts, visual-art courses draw art facts, and theatre, film and dance have their own set, so the "lightness or darkness of a colour" question can no longer turn up in AP Music Theory.
 - Subject classification now matches whole words: “particle” no longer sends Quantum Mechanics into the art pool, and “metaphysics” no longer sends Philosophy into the physics pool.
 - Philosophy has its own bank (validity, soundness, ethics, epistemology, fallacies) instead of borrowed physics or grammar questions.
+- Question pools moved out of `subject-banks.js` into `questions/<area>/<pool>.js`, with `questions/registry.js` mapping every subject id to its own pool. The broad "science", "social" and "arts" buckets are gone.
+- GED no longer counts as an arts subject, the Universal Study Vault subjects no longer draw grammar questions, AP World History no longer draws computing questions, and Psychology no longer draws research-methods questions.
+- Chemistry, biology, astronomy, environmental science and anatomy each have their own pools instead of sharing one general science pool; history, government, economics, psychology, sociology and geography likewise.
+- Music and philosophy pools deepened: 85 music facts (notation, keys, intervals, chords, harmony, form, texture, dynamics, tempo, rhythm) plus a theory-driven generator for intervals, key signatures, relative keys and scale degrees; 45 philosophy facts across logic, ethics, epistemology, metaphysics and political philosophy.
 - Updated the README, release notes and cache versions.
 
 ## Verification
@@ -125,6 +129,10 @@ Verified in the browser and static checks:
 - Guest mode: one-click session created from the sign-in page, progress written to its own local key, sign-out returns to the gate.
 - Learn tab renders for a language, an AP course and calculus, with deep dives, worked steps, video blocks and the AP language-deck link.
 - AP banks now report a 2,000-question target and materialise without malformed options.
+- Pool audit: all 443 subjects resolve either a registered pool or one of the numeric/vocabulary/concept generators; no subject falls back to another field's facts. 26 pools loaded.
+- GED, SAT, ACT, PSAT and GRE are classified as exams; GED shows its own curated math/reading/science/social questions rather than art facts.
+- Study Vault subjects (exam hacks, memory tricks, study planning) show retrieval practice, spacing, interleaving and planning questions.
+- Variety in the 2,000-question banks: AP Music Theory produces 274 distinct prompts and 361 distinct question option-sets across 2,000 items; philosophy 226 distinct prompts across 1,000. Other AP pools still repeat their ~18–20 facts, which is the known limitation below.
 - Discipline routing checked in the browser: AP Music Theory draws music facts only (zero art prompts in 2,000), AP Art History draws art facts only, AP Music Theory's Learn topics are musical, and Philosophy, Quantum Mechanics and the theatre subjects no longer borrow another field's questions.
 - All eight AP world-language banks checked: zero filler options, zero beginner-vocabulary questions, 12 distinct prompts each.
 - Word bank, Listen fallback, mark-as-known, flashcards reveal/advance/summary and the word-bank search jump were exercised in the browser at 390px and desktop width.
@@ -138,6 +146,10 @@ Verified in the browser and static checks:
 - Local files referenced by `index.html` all exist.
 - No unused function declarations remain in `app.js`; dead CSS removed.
 - Console shows only the existing Tailwind CDN warning.
+
+### Pool depth limitation
+
+The pools are accurate but uneven. Music (85 facts plus a generator) and philosophy (45 facts) carry a 2,000- and 1,000-question bank well; the other AP pools hold about 18–20 facts, so their 2,000-question banks repeat the same facts far more often than the music bank. Growing each pool is a content job, not a generator change, and is listed in `NEXT_STEPS.txt`.
 
 ## Not verified
 
@@ -157,7 +169,7 @@ These require a real Firebase project and public `firebase-config.js` values.
 4. Deploy `firestore.rules` with `firebase deploy --only firestore:rules`.
 5. Test sign-up, sign-in, reset, Google popup, save, reload and merge on the live origin.
 
-Asset query strings were bumped to `0.6.2-alpha` so browsers pick up guest mode, learning mode and the deeper AP banks, and `subject-banks.js` to `0.6.3-alpha` for the discipline-pool fix; the release itself is still **0.6-alpha**.
+Asset query strings were bumped to `0.7.0-alpha` for the `questions/` pool tree, `subject-banks.js` and `app.js`; the release itself is still **0.6-alpha**.
 
 Existing offline profiles keep their ids. Existing guest progress is migrated once. Old guest progress keys are removed after the first identity is created. Vocabulary mastery is merged on sign-in like any other progress.
 
