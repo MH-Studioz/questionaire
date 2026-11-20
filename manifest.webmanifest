@@ -1,0 +1,19 @@
+{
+  "name": "Questionaire — A Study Annual",
+  "short_name": "Questionaire",
+  "description": "Practice papers, mock exams and written answers for AP, SAT, ACT, PSAT, GED and GRE.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#14120e",
+  "theme_color": "#14120e",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

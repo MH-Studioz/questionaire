@@ -1,3 +1,45 @@
+# Questionaire 0.7.1-alpha — Codes, written answers and offline
+
+Released 20 November 2026.
+
+Dual question ids, free-response practice, an installable offline shell and a keyboard pass on the paper runner, on top of 0.7.0's saved sittings. The paper-and-ink interface is unchanged.
+
+## Question codes
+
+- Each question keeps its internal slug in `database.js`. The student-facing code (`#Q8X49P`) is derived from it by `getDisplayId` (FNV-1a, 31 unambiguous characters, six positions) and registered in a lookup as questions load, so no code is stored in content files.
+- Codes appear on practice cards, the paper runner, mock questions and attempt reviews, with a copy button that falls back to a text selection where the clipboard is blocked.
+- Global search accepts a code with or without `#`, opens the exact card and works for lazily generated banks once they materialise.
+- Scanning the whole catalogue found 127 collisions across 443,000 questions and none within any single 1,000-question subject. A colliding code lists every owner rather than hiding one.
+
+## Open question banks
+
+- `sources.js` records the licence and usage note for OpenStax, Illustrative Mathematics, LibreTexts Commons and the College Board SAT Suite Question Bank; Settings lists them.
+- `open-bank.js` adds 15 original drills aligned to cited OpenStax chapters and Illustrative Mathematics task families, each with a visible attribution line. College Board items are proprietary and none were copied; LibreTexts licences vary per page, so nothing was reproduced from it.
+
+## Written answers
+
+- A **Written** tab appears on subjects with free-response prompts. Each prompt shows its rubric up front, accepts a draft, self-grades criterion by criterion and unlocks the model answer only after a grade is saved.
+- Drafts save shortly after typing stops and live in the profile record (`progress.frq`), so they survive reloads and follow the merge policy.
+
+## Offline shell
+
+- `manifest.webmanifest`, `icon.svg` and `sw.js` make the app installable. The service worker precaches the shell plus the local scripts and caches same-origin GETs at runtime, including versioned asset URLs.
+- With the preview server stopped, a reload rendered the full catalogue from cache, confirming a cached subject bank can be opened and sat offline.
+
+## Keyboard and screen readers
+
+- Paper runner: A–D or 1–4 answers, Enter advances, arrows move, F marks, R reviews. Answers, marks and timer thresholds go to a polite live region, focus moves to the current question, and the navigator exposes `aria-current`.
+
+## Tests
+
+- `tests/smoke.py` (Playwright, Python) covers submit → history, reload → resume, misses retake and the corrected badge; it passed locally against a static server.
+- `.github/workflows/ci.yml` installs Playwright Chromium, serves the site and runs the suite on pushes and pull requests.
+
+## Known limitations
+
+- Firebase was not exercised this release: the machine has no Node/npm or Firebase CLI, and the installed Java 8 is below the emulator's requirement, so merge, the two-device unfinished-sitting conflict and Firestore document-size headroom remain unverified against the emulator.
+- Per-item calibration is not included because it needs a server-side aggregator. The local record already stores per-question attempts and correctness, which is the shape a backend would consume.
+
 # Questionaire 0.7.0-alpha — Saved sittings release
 
 Released 20 November 2026.

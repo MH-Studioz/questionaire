@@ -17,7 +17,7 @@
      Constants
      -------------------------------------------------------------------------- */
 
-  const APP_VERSION = "0.7.0-alpha";
+  const APP_VERSION = "0.7.1-alpha";
   const STORAGE_KEY = "questionaire.progress.v1";
   const ACCOUNTS_KEY = "questionaire.accounts.v1";
   const THEME_KEY = "questionaire.theme";
@@ -32,6 +32,7 @@
 
   const TABS = [
     { id: "practice", label: "Practice", icon: "list-checks" },
+    { id: "written", label: "Written", icon: "pen-line" },
     { id: "learn", label: "Learn", icon: "graduation-cap" },
     { id: "words", label: "Word bank", icon: "languages" },
     { id: "study", label: "Study bank", icon: "book-open" },
@@ -40,6 +41,50 @@
   ];
   const TAB_IDS = TABS.map(function (tab) { return tab.id; });
   const DIFFICULTIES = ["All", "Beginner", "Intermediate", "Advanced"];
+
+  /* --------------------------------------------------------------------------
+     Question codes — internal slug for code, #CODE for people
+     -------------------------------------------------------------------------- */
+
+  const DISPLAY_ID_CHARS = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+  const ID_LOOKUP = Object.create(null);
+
+  /* Deterministic 6-character code a student can read aloud, copy and search.
+     The alphabet drops 0/O, 1/I and L so a typed code cannot be ambiguous. */
+  function getDisplayId(internalId) {
+    const source = String(internalId == null ? "" : internalId);
+    let hash = 2166136261;
+    for (let i = 0; i < source.length; i += 1) {
+      hash ^= source.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    let code = "";
+    let num = hash >>> 0;
+    for (let i = 0; i < 6; i += 1) {
+      code += DISPLAY_ID_CHARS[num % DISPLAY_ID_CHARS.length];
+      num = Math.floor(num / DISPLAY_ID_CHARS.length) + i * 7;
+    }
+    return "#" + code;
+  }
+
+  function registerDisplayId(question) {
+    if (!question || !question.id) return;
+    if (!question.displayId) question.displayId = getDisplayId(question.id);
+    const full = question.displayId.toUpperCase();
+    const bare = full.slice(1);
+    [full, bare].forEach(function (key) {
+      const bucket = ID_LOOKUP[key] || (ID_LOOKUP[key] = []);
+      if (bucket.indexOf(question) < 0) bucket.push(question);
+    });
+  }
+
+  /* Boot-time map from a typed code back to every question that owns it.
+     Values are arrays: the 6-character code is deterministic, so a rare hash
+     collision must stay visible instead of silently hiding a question. */
+  function buildIdLookup(questions) {
+    (Array.isArray(questions) ? questions : []).forEach(registerDisplayId);
+    return ID_LOOKUP;
+  }
 
   /* --------------------------------------------------------------------------
      DOM
@@ -69,8 +114,22 @@
   let SEARCH_INDEX = [];
 
   function buildIndex() {
+    const openBank = window.QUESTIONAIRE_OPEN_BANK || {};
+    const frqBank = window.QUESTIONAIRE_FRQ_BANK || {};
     window.STUDY_DATA.categories.forEach(function (category) {
       category.subjects.forEach(function (subject) {
+        if (Array.isArray(frqBank[subject.id]) && frqBank[subject.id].length) {
+          subject.frq = frqBank[subject.id];
+        }
+        const extra = openBank[subject.id];
+        if (Array.isArray(extra) && extra.length) {
+          const known = new Set(subject.questions.map(function (question) { return question.id; }));
+          extra.forEach(function (question) {
+            if (!question || !question.id || known.has(question.id)) return;
+            subject.questions.push(question);
+            known.add(question.id);
+          });
+        }
         const entry = {
           subject: subject,
           category: category,
@@ -87,6 +146,7 @@
   }
 
   function registerQuestion(question, entry) {
+    registerDisplayId(question);
     QUESTION_MAP.set(question.id, {
       question: question,
       subject: entry.subject,
@@ -184,7 +244,8 @@
     decks: {},
     reviewFilter: "all",
     attemptId: null,
-    attemptFilter: "all"
+    attemptFilter: "all",
+    frqId: null
   };
 
   let exam = null;
@@ -194,6 +255,9 @@
   let searchResults = [];
   let searchDebounce = null;
   let toastTimer = null;
+  let frqSaveTimer = null;
+  let pendingAnnounce = "";
+  let pendingFocus = null;
 
   let accountStore = { version: 1, activeId: null, accounts: [] };
   let activeAccount = null;
@@ -228,7 +292,8 @@
       corrected: {},
       topicStats: {},
       attempts: [],
-      active: null
+      active: null,
+      frq: {}
     };
   }
 
@@ -289,7 +354,8 @@
       (Array.isArray(value.bookmarks) && value.bookmarks.length) ||
       (Array.isArray(value.mistakes) && value.mistakes.length) ||
       (Array.isArray(value.attempts) && value.attempts.length) ||
-      (value.topicStats && Object.keys(value.topicStats).length)
+      (value.topicStats && Object.keys(value.topicStats).length) ||
+      (value.frq && Object.keys(value.frq).length)
     );
   }
 
@@ -353,6 +419,23 @@
             correct: Math.max(Number(a.correct) || 0, Number(b.correct) || 0),
             total: Math.max(Number(a.total) || 0, Number(b.total) || 0)
           };
+        });
+      });
+    });
+    return merged;
+  }
+
+  function mergeFrq(left, right) {
+    const merged = {};
+    [left || {}, right || {}].forEach(function (source) {
+      Object.keys(source).forEach(function (subjectId) {
+        const bucket = merged[subjectId] || (merged[subjectId] = {});
+        Object.keys(source[subjectId] || {}).forEach(function (promptId) {
+          const a = bucket[promptId];
+          const b = source[subjectId][promptId] || {};
+          if (!a || String(b.updatedAt || "") > String(a.updatedAt || "")) {
+            bucket[promptId] = b;
+          }
         });
       });
     });
@@ -435,7 +518,8 @@
       corrected: corrected,
       topicStats: mergeTopicStats(left.topicStats, right.topicStats),
       attempts: mergeAttempts(left.attempts, right.attempts),
-      active: pickActive(left.active, right.active)
+      active: pickActive(left.active, right.active),
+      frq: mergeFrq(left.frq, right.frq)
     };
   }
 
@@ -478,6 +562,7 @@
     if (!Array.isArray(merged.attempts)) merged.attempts = [];
     merged.attempts = mergeAttempts(merged.attempts, []);
     if (!merged.active || typeof merged.active !== "object") merged.active = null;
+    if (!merged.frq || typeof merged.frq !== "object") merged.frq = {};
     if (!merged.vocab || typeof merged.vocab !== "object") merged.vocab = {};
     merged.xp = Number(merged.xp) || 0;
     merged.streak = Number(merged.streak) || 0;
@@ -497,6 +582,7 @@
     state.cards = {};
     state.decks = {};
     state.attemptId = null;
+    state.frqId = null;
     exam = null;
     paper = null;
     pendingTarget = null;
@@ -885,6 +971,12 @@
     } catch (error) {
       /* Keep the raw formula visible if KaTeX fails. */
     }
+  }
+
+  function announce(message) {
+    pendingAnnounce = message;
+    const live = document.getElementById("paper-live") || document.getElementById("exam-live");
+    if (live) live.textContent = message;
   }
 
   function toast(message, variant) {
@@ -1641,6 +1733,16 @@
     typeset(view);
     syncThemeButtons();
     updateSearchClear();
+    if (pendingFocus === "paper-question") {
+      pendingFocus = null;
+      const target = view.querySelector(".paper-question");
+      if (target) target.focus({ preventScroll: false });
+    }
+    if (pendingAnnounce) {
+      const live = document.getElementById("paper-live") || document.getElementById("exam-live");
+      if (live) live.textContent = pendingAnnounce;
+      pendingAnnounce = "";
+    }
   }
 
   function renderView() {
@@ -1739,7 +1841,7 @@
       '<h1>What are we studying today?</h1>' +
       '<p>Find your course, answer a few questions, and get an explanation you can actually use. Sign in once, then keep the noise out and do the work.</p>' +
       '<button class="home-search" type="button" data-action="focus-search">' +
-      '<i data-lucide="search"></i><span>Search subjects, topics or questions</span><kbd aria-hidden="true">/</kbd></button>' +
+      '<i data-lucide="search"></i><span>Search subjects, topics, questions or #codes</span><kbd aria-hidden="true">/</kbd></button>' +
       '<div class="home-actions">' +
       '<a class="btn btn-primary" href="#/browse"><span>Browse all ' + SUBJECTS.length + ' subjects</span><i data-lucide="arrow-right"></i></a>' +
       '<a class="btn btn-ghost" href="#/browse/ap-courses"><span>AP courses</span><span class="btn-count">' + (apCategory ? apCategory.subjects.length : 0) + '</span></a>' +
@@ -1890,12 +1992,14 @@
 
     const visibleTabs = TABS.filter(function (tab) {
       if (tab.id === "words") return packWords(subject).length > 0;
+      if (tab.id === "written") return Array.isArray(subject.frq) && subject.frq.length > 0;
       return tab.id !== "videos" || subject.videos.length > 0;
     });
 
     const tabs = visibleTabs.map(function (tab) {
       let count = 0;
       if (tab.id === "practice") count = subject.questions.length;
+      if (tab.id === "written") count = subject.frq.length;
       if (tab.id === "learn") count = subjectTopics(subject).length;
       if (tab.id === "words") count = packWords(subject).length;
       if (tab.id === "study") count = subject.study.length;
@@ -1910,7 +2014,8 @@
     }).join("");
 
     let panel = "";
-    if (state.route.tab === "learn") panel = learnTabHTML(entry);
+    if (state.route.tab === "written") panel = frqTabHTML(entry);
+    else if (state.route.tab === "learn") panel = learnTabHTML(entry);
     else if (state.route.tab === "words") panel = wordsTabHTML(entry);
     else if (state.route.tab === "study") panel = studyTabHTML(subject);
     else if (state.route.tab === "tips") panel = tipsTabHTML(subject);
@@ -2022,6 +2127,25 @@
     );
   }
 
+  function codeChipHTML(question) {
+    if (!question || !question.displayId) return "";
+    return '<button type="button" class="q-code" data-action="copy-code" data-code="' + esc(question.displayId) + '" title="Copy this code — it also works in search" aria-label="Question code ' + esc(question.displayId) + '">' + esc(question.displayId) + "</button>";
+  }
+
+  function sourceFor(question) {
+    const registry = window.QUESTIONAIRE_SOURCES || {};
+    return question && question.source ? registry[question.source] || null : null;
+  }
+
+  function questionSourceHTML(question) {
+    const source = sourceFor(question);
+    if (!source) return "";
+    return (
+      '<p class="q-source"><i data-lucide="library"></i>Aligned to <a href="' + esc(source.url) + '" target="_blank" rel="noopener">' + esc(source.title) + "</a>" +
+      (question.sourceRef ? " · " + esc(question.sourceRef) : "") + " · " + esc(source.licence) + "</p>"
+    );
+  }
+
   function questionCardHTML(entry, question, options) {
     options = options || {};
     const cardState = state.cards[question.id] || {
@@ -2101,6 +2225,7 @@
       '<div class="q-head">' +
       '<div class="q-badges">' +
       '<span class="badge ' + badgeClass(question.difficulty) + '">' + esc(question.difficulty) + "</span>" +
+      codeChipHTML(question) +
       subjectChip + reasons + tags +
       "</div>" +
       '<div class="q-actions">' +
@@ -2109,6 +2234,7 @@
       '<i data-lucide="star"></i></button>' +
       "</div></div>" +
       '<div class="q-prompt">' + esc(question.prompt) + "</div>" +
+      questionSourceHTML(question) +
       '<div class="q-options">' + optionHTML + "</div>" +
       '<div class="q-footer">' +
       '<button type="button" class="btn btn-ghost btn-sm" data-action="hint" data-qid="' + esc(question.id) + '">' +
@@ -2191,6 +2317,7 @@
           '<button type="button" class="btn btn-ghost btn-sm ' + (activeExam.reviewMisses ? "is-active" : "") + '" data-action="exam-review-filter" data-value="misses">Only misses</button>' : "") +
         "</div></div>" + examReportHTML(activeExam)
       : '<div class="exam-bar">' +
+        '<p class="sr-only" id="exam-live" role="status" aria-live="polite"></p>' +
         '<div class="exam-timer" id="exam-timer-wrap"><i data-lucide="timer"></i><span id="exam-timer">' + formatTime(remaining) + "</span></div>" +
         '<div class="exam-progress"><div class="progress"><div class="progress-bar" id="exam-progress-bar" style="width:' + timePct + '%"></div></div></div>' +
         '<div class="exam-meta">' + answeredCount + " / " + activeExam.questions.length + " answered" +
@@ -2293,11 +2420,13 @@
       '<div class="exam-question-head">' +
       '<span class="exam-qnum">' + (index + 1) + "</span>" +
       '<span class="badge ' + badgeClass(question.difficulty) + '">' + esc(question.difficulty) + "</span>" +
+      codeChipHTML(question) +
       '<span class="exam-q-tools">' +
       (submitted ? "" : '<button type="button" class="flag-btn ' + (flagged ? "is-flagged" : "") + '" data-action="exam-flag" data-qid="' + esc(question.id) + '" aria-pressed="' + flagged + '" aria-label="Mark for review"><i data-lucide="flag"></i>' + (flagged ? "Marked" : "Mark") + "</button>") +
       '<button type="button" class="icon-btn star-btn ' + (starred ? "is-starred" : "") + '" data-action="bookmark" data-qid="' + esc(question.id) + '" aria-label="Bookmark for review" title="Bookmark for review"><i data-lucide="star"></i></button></span>' +
       "</div>" +
       '<div class="q-prompt">' + esc(question.prompt) + "</div>" +
+      questionSourceHTML(question) +
       '<div class="q-options">' + options + "</div>" + explanation +
       "</div>"
     );
@@ -2356,6 +2485,14 @@
       const remaining = remainingSeconds();
       const text = document.getElementById("exam-timer");
       if (text) text.textContent = formatTime(remaining);
+      if (!exam.announced) exam.announced = {};
+      [300, 60, 30, 10].forEach(function (mark) {
+        if (remaining <= mark && remaining > 0 && !exam.announced[mark]) {
+          exam.announced[mark] = true;
+          const live = document.getElementById("exam-live");
+          if (live) live.textContent = formatTime(mark) + " remaining.";
+        }
+      });
       const wrap = document.getElementById("exam-timer-wrap");
       if (wrap) wrap.classList.toggle("is-low", remaining <= 15);
       const bar = document.getElementById("exam-progress-bar");
@@ -2852,9 +2989,11 @@
         '<article class="attempt-q ' + (correct ? "is-correct" : "is-wrong") + '">' +
         '<div class="attempt-q-head"><span class="attempt-q-num mono">' + String(number).padStart(2, "0") + '</span>' +
         '<span class="badge ' + badgeClass(question.difficulty) + '">' + esc(question.difficulty) + "</span>" +
+        codeChipHTML(question) +
         '<span class="attempt-q-topic">' + esc((question.tags && question.tags[0]) || "General") + "</span>" +
         '<span class="attempt-q-mark ' + (correct ? "is-correct" : "is-wrong") + '">' + (correct ? "Correct" : "Missed") + "</span></div>" +
         '<p class="attempt-q-prompt">' + esc(question.prompt) + "</p>" +
+        questionSourceHTML(question) +
         '<div class="attempt-q-rows">' +
         '<div class="attempt-q-row"><span>Your answer</span><strong class="' + (correct ? "is-correct" : "is-wrong") + '">' + esc(pickedText) + "</strong></div>" +
         (correct ? "" : '<div class="attempt-q-row"><span>Correct</span><strong class="is-correct">' + esc(correctText) + "</strong></div>") +
@@ -3116,6 +3255,7 @@
     if (paper.reviewing) return paperReviewScreenHTML();
 
     return (
+      '<p class="sr-only" id="paper-live" role="status" aria-live="polite"></p>' +
       '<div class="card paper-runner-head">' +
       '<div><span class="badge badge-intermediate">' + esc(paper.label) + '</span>' +
       "<h2>Question " + (paper.index + 1) + " of " + total + "</h2></div>" +
@@ -3125,12 +3265,14 @@
       '<div class="progress paper-progress"><div class="progress-bar" style="width:' + Math.round(((paper.index + (answered ? 1 : 0)) / total) * 100) + '%"></div></div></div>' +
       paperNavigatorHTML() +
 
-      '<article class="question-card card paper-question">' +
+      '<article class="question-card card paper-question" tabindex="-1" aria-label="Question ' + (paper.index + 1) + ' of ' + total + '">' +
       '<div class="q-head"><div class="q-badges"><span class="badge ' + badgeClass(question.difficulty) + '">' + esc(question.difficulty) + "</span>" +
+      codeChipHTML(question) +
       (question.tags || []).slice(0, 2).map(function (tag) { return '<span class="tag">' + esc(tag) + "</span>"; }).join("") +
       '</div><div class="q-head-tools"><button type="button" class="flag-btn ' + (flagged ? "is-flagged" : "") + '" data-action="paper-flag" data-qid="' + esc(question.id) + '" aria-pressed="' + flagged + '" aria-label="Mark for review"><i data-lucide="flag"></i>' + (flagged ? "Marked" : "Mark") + '</button>' +
       '<button type="button" class="icon-btn star-btn ' + (starred ? "is-starred" : "") + '" data-action="bookmark" data-qid="' + esc(question.id) + '" aria-label="Bookmark for review"><i data-lucide="star"></i></button></div></div>' +
       '<div class="q-prompt">' + esc(question.prompt) + "</div>" +
+      questionSourceHTML(question) +
       '<div class="q-options">' + options + "</div>" +
       '<details class="paper-hint"><summary>Need a hint?</summary><p>' + esc(question.hint) + "</p></details>" +
       (answered
@@ -3155,10 +3297,10 @@
       '<div class="q-nav-head"><span class="eyebrow">Question navigator</span>' +
       '<span class="q-nav-legend"><span class="q-nav-key is-answered"></span>Answered' +
       '<span class="q-nav-key is-flagged"></span>Marked</span></div>' +
-      '<div class="q-nav">' + paper.questions.map(function (question, index) {
+      '<div class="q-nav" role="group" aria-label="Jump to a question">' + paper.questions.map(function (question, index) {
         const done = paper.answers[question.id] !== undefined;
         const marked = paper.flags.indexOf(question.id) >= 0;
-        return '<button type="button" class="q-nav-btn' + (done ? " is-answered" : "") + (marked ? " is-flagged" : "") + (index === paper.index ? " is-current" : "") + '" data-action="paper-goto" data-index="' + index + '" aria-label="Question ' + (index + 1) + (done ? ", answered" : ", blank") + (marked ? ", marked" : "") + '">' + (index + 1) + "</button>";
+        return '<button type="button" class="q-nav-btn' + (done ? " is-answered" : "") + (marked ? " is-flagged" : "") + (index === paper.index ? " is-current" : "") + '" data-action="paper-goto" data-index="' + index + '"' + (index === paper.index ? ' aria-current="true"' : "") + ' aria-label="Question ' + (index + 1) + (done ? ", answered" : ", blank") + (marked ? ", marked" : "") + '">' + (index + 1) + "</button>";
       }).join("") + "</div></div>"
     );
   }
@@ -3309,6 +3451,119 @@
   /* --------------------------------------------------------------------------
      Review queue
      -------------------------------------------------------------------------- */
+
+  /* --------------------------------------------------------------------------
+     Written answers — FRQ prompts with a self-graded rubric
+     -------------------------------------------------------------------------- */
+
+  function frqRecord(subjectId, promptId) {
+    const bucket = progress.frq[subjectId] || {};
+    return bucket[promptId] || null;
+  }
+
+  function frqScore(record) {
+    if (!record || !record.scores) return 0;
+    return Object.keys(record.scores).reduce(function (sum, key) {
+      return sum + (Number(record.scores[key]) || 0);
+    }, 0);
+  }
+
+  function frqTotal(prompt) {
+    return (prompt.criteria || []).reduce(function (sum, criterion) {
+      return sum + (Number(criterion.max) || 0);
+    }, 0);
+  }
+
+  function frqTabHTML(entry) {
+    const subject = entry.subject;
+    const prompts = subject.frq || [];
+    if (state.frqId) {
+      const prompt = prompts.find(function (item) { return item.id === state.frqId; });
+      if (prompt) return frqPromptHTML(entry, prompt);
+      state.frqId = null;
+    }
+
+    const cards = prompts.map(function (prompt) {
+      const record = frqRecord(subject.id, prompt.id);
+      const graded = record && record.gradedAt;
+      return (
+        '<article class="card frq-card">' +
+        '<div class="frq-card-head"><span class="paper-kicker">Free response</span>' +
+        '<span class="badge badge-advanced">' + frqTotal(prompt) + " pts</span></div>" +
+        "<h3>" + esc(prompt.title) + "</h3>" +
+        '<p class="frq-preview">' + esc(prompt.prompt).slice(0, 190) + "…</p>" +
+        '<div class="frq-meta"><span>' + (prompt.criteria || []).length + " criteria</span>" +
+        (graded
+          ? '<span class="frq-last">Last self-grade ' + frqScore(record) + "/" + frqTotal(prompt) + "</span>"
+          : record ? '<span class="frq-last is-draft">Draft saved</span>' : "") +
+        "</div>" +
+        '<button type="button" class="btn btn-primary btn-sm" data-action="open-frq" data-subject="' + esc(subject.id) + '" data-frq="' + esc(prompt.id) + '">' +
+        (record && record.answer ? "Continue answer" : "Write answer") + '<i data-lucide="arrow-right"></i></button></article>'
+      );
+    }).join("");
+
+    return (
+      '<div class="card papers-intro">' +
+      '<div class="exam-intro-head"><span class="subject-icon accent-amber"><i data-lucide="pen-line"></i></span>' +
+      '<div><h2>Written answers</h2><p>Free-response prompts with the rubric shown up front. Write your answer, score it against each criterion yourself, then compare with the model answer. Drafts and grades stay with your profile.</p></div></div>' +
+      '<ul class="settings-list">' +
+      "<li>Write first, grade second — the model answer stays hidden until you have scored your own response.</li>" +
+      "<li>Every prompt is graded out of a fixed rubric, so a retake is comparable.</li>" +
+      "<li>Drafts save as you type and follow your profile, not the tab.</li>" +
+      "</ul></div>" +
+      '<div class="frq-grid">' + cards + "</div>"
+    );
+  }
+
+  function frqPromptHTML(entry, prompt) {
+    const subject = entry.subject;
+    const record = frqRecord(subject.id, prompt.id);
+    const graded = Boolean(record && record.gradedAt);
+    const scores = (record && record.scores) || {};
+    const total = frqTotal(prompt);
+    const earned = frqScore(record);
+
+    const rubric = (prompt.criteria || []).map(function (criterion) {
+      const value = Number(scores[criterion.id]) || 0;
+      const options = [];
+      for (let mark = 0; mark <= criterion.max; mark += 1) {
+        options.push('<option value="' + mark + '"' + (mark === value ? " selected" : "") + ">" + mark + " / " + criterion.max + "</option>");
+      }
+      return (
+        '<div class="frq-criterion">' +
+        '<div class="frq-criterion-head"><strong>' + esc(criterion.label) + '</strong>' +
+        '<label class="frq-score-field"><span>Your score</span><select data-frq-criterion="' + esc(criterion.id) + '" data-descriptors="' + esc(JSON.stringify(criterion.descriptors || {})) + '" aria-label="Score for ' + esc(criterion.label) + '">' + options.join("") + "</select></label></div>" +
+        '<p class="frq-descriptor">' + esc((criterion.descriptors && criterion.descriptors[value]) || "") + "</p>" +
+        "</div>"
+      );
+    }).join("");
+
+    const model = graded
+      ? '<div class="card frq-model"><span class="eyebrow">Model answer</span>' +
+        (prompt.model || []).map(function (paragraph) { return "<p>" + esc(paragraph) + "</p>"; }).join("") +
+        '<p class="frq-guidance"><i data-lucide="compass"></i>' + esc(prompt.guidance || "") + "</p></div>"
+      : '<div class="card frq-locked"><i data-lucide="lock"></i><p>The model answer unlocks after you score your own response against the rubric.</p></div>';
+
+    return (
+      '<div class="frq-prompt-view">' +
+      '<button type="button" class="back-link" data-action="frq-back" data-subject="' + esc(subject.id) + '"><i data-lucide="arrow-left"></i>All written prompts</button>' +
+      '<div class="card frq-head"><div><span class="eyebrow">Free response · ' + total + ' points</span>' +
+      "<h2>" + esc(prompt.title) + "</h2></div>" +
+      (graded ? '<span class="badge badge-beginner">Self-graded ' + earned + "/" + total + "</span>" : '<span class="badge badge-intermediate">Not graded yet</span>') + "</div>" +
+      '<div class="card frq-question"><div class="q-prompt">' + esc(prompt.prompt) + "</div>" +
+      '<label class="frq-answer-label" for="frq-answer">Your answer</label>' +
+      '<textarea id="frq-answer" class="frq-answer" rows="9" data-frq-input data-subject="' + esc(subject.id) + '" data-frq="' + esc(prompt.id) + '" placeholder="Write the full response you would hand in. Show your reasoning step by step.">' + esc((record && record.answer) || "") + "</textarea>" +
+      '<div class="frq-answer-meta"><span data-frq-status>' + (record && record.answer ? "Draft saved" : "Not started") + "</span><span data-frq-count>" + String((record && record.answer) || "").length + " characters</span></div></div>" +
+      '<div class="card frq-rubric"><div class="exam-report-head"><div><span class="eyebrow">Self-grading</span><h3>Score each criterion honestly</h3></div>' +
+      '<strong class="mono" data-frq-total data-frq-max="' + total + '">' + earned + "/" + total + "</strong></div>" +
+      rubric +
+      '<div class="exam-actions"><button type="button" class="btn btn-primary" data-action="frq-grade" data-subject="' + esc(subject.id) + '" data-frq="' + esc(prompt.id) + '"><i data-lucide="check-check"></i>' + (graded ? "Update grade" : "Save grade") + "</button>" +
+      (record && record.answer ? '<button type="button" class="btn btn-ghost" data-action="frq-clear" data-subject="' + esc(subject.id) + '" data-frq="' + esc(prompt.id) + '"><i data-lucide="trash-2"></i>Clear answer</button>' : "") +
+      "</div></div>" +
+      model +
+      "</div>"
+    );
+  }
 
   function renderReview() {
     ensureReviewBanks();
@@ -3490,6 +3745,26 @@
      Settings
      -------------------------------------------------------------------------- */
 
+  function sourcesPanelHTML() {
+    const registry = window.QUESTIONAIRE_SOURCES || {};
+    const ids = Object.keys(registry);
+    if (!ids.length) return "";
+    return (
+      '<section class="settings-card card">' +
+      "<h2>Question sources</h2>" +
+      '<p>Open education banks whose scope shaped these drills. Items marked with a source are original questions aligned to that chapter or task, not copied text.</p>' +
+      '<div class="source-list">' + ids.map(function (id) {
+        const source = registry[id];
+        return (
+          '<div class="source-row">' +
+          '<a href="' + esc(source.url) + '" target="_blank" rel="noopener"><strong>' + esc(source.title) + '</strong><i data-lucide="external-link"></i></a>' +
+          '<span class="source-licence mono">' + esc(source.licence) + "</span>" +
+          "<small>" + esc(source.note) + "</small></div>"
+        );
+      }).join("") + "</div></section>"
+    );
+  }
+
   function renderSettings() {
     const stats = getStats();
     const totalQuestions = SUBJECTS.reduce(function (sum, entry) {
@@ -3550,6 +3825,7 @@
       '<ul class="settings-list">' +
       "<li>Give each subject a unique <code>id</code> and add it to a category's <code>subjects</code> array.</li>" +
       "<li>Question ids must be globally unique — prefix them with the subject id.</li>" +
+      "<li>The student-facing <code>#CODE</code> is generated from the id — never add it to the data.</li>" +
       "<li>LaTeX goes between <code>$…$</code> inline or <code>$$…$$</code> block.</li>" +
       "<li><code>answer</code> is the zero-based index of the correct option.</li>" +
       "<li>Videos use the 11-character YouTube id.</li>" +
@@ -3560,10 +3836,12 @@
       '<div class="settings-row"><span>Focus search</span><span><kbd>/</kbd></span></div>' +
       '<div class="settings-row"><span>Close search / drawer</span><span><kbd>Esc</kbd></span></div>' +
       '<div class="settings-row"><span>Open first result</span><span><kbd>Enter</kbd></span></div>' +
+      '<div class="settings-row"><span>Question code</span><span class="mono">#Q8X49P</span></div>' +
       '<p style="margin-top:10px">Clearing site data resets the record but never the study content. Theme preference is stored separately.</p>' +
       '<p style="margin-top:8px"><a class="section-link" href="https://pages.github.com/" target="_blank" rel="noopener"><i data-lucide="external-link"></i>GitHub Pages docs</a></p>' +
       "</section>" +
 
+      sourcesPanelHTML() +
       '<section class="settings-card card">' +
       "<h2>Danger zone</h2>" +
       '<p>Resetting wipes solved questions, XP, streak, bookmarks and mistakes. It cannot be undone.</p>' +
@@ -3579,6 +3857,11 @@
      -------------------------------------------------------------------------- */
 
   function buildSearchIndex() {
+    /* Stamp and index every question loaded so far, including lazily sampled
+       banks, so a code typed into search resolves from the first keystroke. */
+    buildIdLookup(SUBJECTS.reduce(function (all, entry) {
+      return all.concat(entry.subject.questions);
+    }, []));
     const entries = [];
     SUBJECTS.forEach(function (entry) {
       const subject = entry.subject;
@@ -3610,8 +3893,9 @@
           subjectId: subject.id,
           tab: "practice",
           qid: question.id,
+          code: question.displayId || getDisplayId(question.id),
           title: plain(question.prompt),
-          text: plain(question.prompt) + " " + question.options.map(plain).join(" ") + " " + question.tags.join(" ") + " " + plain(question.hint),
+          text: plain(question.prompt) + " " + question.options.map(plain).join(" ") + " " + question.tags.join(" ") + " " + plain(question.hint) + " " + (question.displayId || ""),
           tags: question.tags
         });
       });
@@ -3648,7 +3932,7 @@
     if (!query) return [];
     const terms = query.split(/\s+/);
     return SEARCH_INDEX.map(function (entry) {
-      const haystack = (entry.title + " " + entry.text + " " + entry.tags.join(" ")).toLowerCase();
+      const haystack = (entry.title + " " + entry.text + " " + (entry.code || "") + " " + entry.tags.join(" ")).toLowerCase();
       if (!terms.every(function (term) { return haystack.indexOf(term) >= 0; })) return null;
       let score = 0;
       if (entry.title.toLowerCase().indexOf(query) >= 0) score += 10;
@@ -3676,18 +3960,52 @@
     }
   }
 
+  function codeFromQuery(raw) {
+    const text = String(raw || "").trim();
+    const value = text.toUpperCase().replace(/^#/, "");
+    if (!/^[0-9A-Z]{6}$/.test(value)) return null;
+    /* A bare six-letter word is only a code when it actually resolves; a
+       leading # always means "look this code up". */
+    if (!text.startsWith("#") && !ID_LOOKUP[value]) return null;
+    return value;
+  }
+
+  function codeSearchEntries(code) {
+    const bucket = ID_LOOKUP[code] || [];
+    return bucket.map(function (question) {
+      const info = QUESTION_MAP.get(question.id);
+      if (!info) return null;
+      return {
+        type: "Question code",
+        icon: "hash",
+        subjectId: info.subject.id,
+        tab: "practice",
+        qid: question.id,
+        code: question.displayId,
+        title: plain(question.prompt),
+        text: "",
+        tags: question.tags || []
+      };
+    }).filter(Boolean);
+  }
+
   function renderSearch(rawQuery) {
     const query = rawQuery.trim();
     if (!query) {
       closeSearch(false);
       return;
     }
-    const results = performSearch(query);
+    const code = codeFromQuery(query);
+    const fromCode = code ? codeSearchEntries(code) : [];
+    const results = fromCode.concat(performSearch(query).filter(function (entry) {
+      return !fromCode.some(function (match) { return match.qid && match.qid === entry.qid; });
+    }));
     searchResults = results;
 
     if (!results.length) {
-      searchResultsPanel.innerHTML =
-        '<div class="search-empty">No matches for “' + esc(query) + '”. Try a tag like <strong>fractions</strong>, <strong>chain rule</strong> or <strong>ATP</strong>.</div>';
+      searchResultsPanel.innerHTML = code
+        ? '<div class="search-empty">No question carries the code <strong>#' + esc(code) + '</strong>. Check the six characters, or search by the question text instead.</div>'
+        : '<div class="search-empty">No matches for “' + esc(query) + '”. Try a tag like <strong>fractions</strong>, <strong>chain rule</strong> or <strong>ATP</strong>, or a question code like <strong>#Q8X49P</strong>.</div>';
     } else {
       searchResultsPanel.innerHTML = results.map(function (entry, index) {
         const subject = SUBJECT_MAP.get(entry.subjectId);
@@ -3697,7 +4015,8 @@
           '<span class="search-result-body">' +
           '<span class="search-result-title">' + highlight(entry.title, query) + "</span>" +
           '<span class="search-result-meta"><span class="search-type">' + esc(entry.type) + "</span>" +
-          "<span>" + esc(subject ? subject.subject.title : "") + "</span></span>" +
+          "<span>" + esc(subject ? subject.subject.title : "") + "</span>" +
+          (entry.code ? '<span class="search-code mono">' + esc(entry.code) + "</span>" : "") + "</span>" +
           "</span></button>"
         );
       }).join("") +
@@ -3789,6 +4108,52 @@
     if (action === "guest-signin") {
       createLocalAccount("Guest", "", true);
       if (activeAccount) resumeAfterAuth();
+      return;
+    }
+
+    if (action === "open-frq" && subjectId) {
+      state.frqId = trigger.getAttribute("data-frq");
+      paint();
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    if (action === "frq-back") {
+      state.frqId = null;
+      paint();
+      return;
+    }
+
+    if (action === "frq-grade" && subjectId) {
+      const entry = SUBJECT_MAP.get(subjectId);
+      if (!entry) return;
+      const prompt = (entry.subject.frq || []).find(function (item) {
+        return item.id === trigger.getAttribute("data-frq");
+      });
+      if (!prompt) return;
+      const scores = {};
+      view.querySelectorAll("[data-frq-criterion]").forEach(function (select) {
+        scores[select.getAttribute("data-frq-criterion")] = Number(select.value) || 0;
+      });
+      const bucket = progress.frq[subjectId] || (progress.frq[subjectId] = {});
+      const record = bucket[prompt.id] || { answer: "" };
+      record.scores = scores;
+      record.gradedAt = new Date().toISOString();
+      record.updatedAt = record.gradedAt;
+      bucket[prompt.id] = record;
+      saveProgress();
+      paint();
+      toast("Saved " + frqScore(record) + "/" + frqTotal(prompt) + " — model answer unlocked.");
+      return;
+    }
+
+    if (action === "frq-clear" && subjectId) {
+      const promptId = trigger.getAttribute("data-frq");
+      if (!window.confirm("Clear this written answer and its self-grade?")) return;
+      if (progress.frq[subjectId]) delete progress.frq[subjectId][promptId];
+      saveProgress();
+      paint();
+      toast("Written answer cleared.", "is-warn");
       return;
     }
 
@@ -3911,6 +4276,21 @@
       return;
     }
 
+    if (action === "copy-code") {
+      const code = trigger.getAttribute("data-code") || "";
+      if (!code) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(function () {
+          toast("Copied " + code + " — paste it into search to jump back here.");
+        }).catch(function () {
+          toast(code + " · copy blocked by the browser", "is-warn");
+        });
+      } else {
+        toast(code + " · copy blocked by the browser", "is-warn");
+      }
+      return;
+    }
+
     if (action === "next-step" && questionId) {
       const info = QUESTION_MAP.get(questionId);
       const card = state.cards[questionId];
@@ -3992,6 +4372,11 @@
       paper.answers[questionId] = index;
       recordAnswer(questionId, index === info.question.answer);
       saveActiveAttempt();
+      announce(
+        "Question " + (paper.index + 1) + ": answer " + "ABCD".charAt(index) + " recorded. " +
+        (index === info.question.answer ? "Correct." : "Not correct.") +
+        (paper.index + 1 < paper.questions.length ? " Press Enter for the next question." : "")
+      );
       paint();
       return;
     }
@@ -4004,6 +4389,8 @@
       }
       paper.index += 1;
       saveActiveAttempt();
+      pendingFocus = "paper-question";
+      announce("Question " + (paper.index + 1) + " of " + paper.questions.length + ".");
       paint();
       return;
     }
@@ -4012,6 +4399,8 @@
       if (!paper || paper.index === 0) return;
       paper.index -= 1;
       saveActiveAttempt();
+      pendingFocus = "paper-question";
+      announce("Question " + (paper.index + 1) + " of " + paper.questions.length + ".");
       paint();
       return;
     }
@@ -4041,6 +4430,7 @@
       if (at >= 0) paper.flags.splice(at, 1);
       else paper.flags.push(questionId);
       saveActiveAttempt();
+      announce(at >= 0 ? "Mark removed." : "Question " + (paper.index + 1) + " marked for review.");
       paint();
       return;
     }
@@ -4301,6 +4691,53 @@
     }
   });
 
+  view.addEventListener("input", function (event) {
+    const field = event.target.closest("[data-frq-input]");
+    if (!field) return;
+    const subjectId = field.getAttribute("data-subject");
+    const promptId = field.getAttribute("data-frq");
+    const status = view.querySelector("[data-frq-status]");
+    const count = view.querySelector("[data-frq-count]");
+    if (count) count.textContent = field.value.length + " characters";
+    if (status) status.textContent = "Saving…";
+    window.clearTimeout(frqSaveTimer);
+    frqSaveTimer = window.setTimeout(function () {
+      const bucket = progress.frq[subjectId] || (progress.frq[subjectId] = {});
+      const record = bucket[promptId] || { answer: "" };
+      record.answer = field.value;
+      record.updatedAt = new Date().toISOString();
+      bucket[promptId] = record;
+      saveProgress();
+      if (status) status.textContent = "Draft saved";
+    }, 450);
+  });
+
+  view.addEventListener("change", function (event) {
+    const select = event.target.closest("[data-frq-criterion]");
+    if (!select) return;
+    const promptView = select.closest(".frq-prompt-view");
+    if (!promptView) return;
+    const criterion = select.closest(".frq-criterion");
+    const descriptor = criterion ? criterion.querySelector(".frq-descriptor") : null;
+    let descriptors = {};
+    try {
+      descriptors = JSON.parse(select.getAttribute("data-descriptors") || "{}");
+    } catch (error) {
+      descriptors = {};
+    }
+    if (descriptor) {
+      descriptor.textContent = descriptors[select.value] || "";
+      typeset(criterion);
+    }
+    const total = promptView.querySelector("[data-frq-total]");
+    if (total) {
+      const sum = Array.from(promptView.querySelectorAll("[data-frq-criterion]")).reduce(function (acc, element) {
+        return acc + (Number(element.value) || 0);
+      }, 0);
+      total.textContent = sum + "/" + (total.getAttribute("data-frq-max") || "0");
+    }
+  });
+
   view.addEventListener("submit", function (event) {
     const form = event.target.closest("form[data-form]");
     if (!form) return;
@@ -4424,6 +4861,79 @@
       closeSearch(false);
       closeSidebar();
     }
+
+    /* Paper runner keyboard pass: A–D / 1–4 answer, Enter advances,
+       arrows move, F marks, R opens the review screen. */
+    if (!typing && paper && !paper.submitted && !paper.reviewing) {
+      const onControl = event.target && event.target.closest && event.target.closest("button, a, select, summary, [role='button']");
+      if (onControl) return;
+      const key = String(event.key || "").toLowerCase();
+      const question = paper.questions[paper.index];
+      if (!question) return;
+      const letterAt = "abcd".indexOf(key);
+      const numberAt = ["1", "2", "3", "4"].indexOf(key);
+      const choice = letterAt >= 0 ? letterAt : numberAt;
+      if (choice >= 0) {
+        if (question.options[choice] === undefined || paper.answers[question.id] !== undefined) return;
+        event.preventDefault();
+        paper.answers[question.id] = choice;
+        recordAnswer(question.id, choice === question.answer);
+        saveActiveAttempt();
+        announce(
+          "Question " + (paper.index + 1) + ": answer " + "ABCD".charAt(choice) + " recorded. " +
+          (choice === question.answer ? "Correct." : "Not correct.") +
+          (paper.index + 1 < paper.questions.length ? " Press Enter for the next question." : "")
+        );
+        paint();
+        return;
+      }
+      if (key === "enter") {
+        event.preventDefault();
+        if (paper.answers[question.id] === undefined) {
+          announce("Choose an answer first — A, B, C or D.");
+          return;
+        }
+        if (paper.index + 1 >= paper.questions.length) {
+          paper.reviewing = true;
+          announce("Last question. Review screen open.");
+          paint();
+          return;
+        }
+        paper.index += 1;
+        saveActiveAttempt();
+        pendingFocus = "paper-question";
+        announce("Question " + (paper.index + 1) + " of " + paper.questions.length + ".");
+        paint();
+        return;
+      }
+      if (key === "arrowright" || key === "arrowleft") {
+        const next = paper.index + (key === "arrowright" ? 1 : -1);
+        if (next < 0 || next >= paper.questions.length) return;
+        event.preventDefault();
+        paper.index = next;
+        saveActiveAttempt();
+        pendingFocus = "paper-question";
+        announce("Question " + (paper.index + 1) + " of " + paper.questions.length + ".");
+        paint();
+        return;
+      }
+      if (key === "f") {
+        event.preventDefault();
+        const at = paper.flags.indexOf(question.id);
+        if (at >= 0) paper.flags.splice(at, 1);
+        else paper.flags.push(question.id);
+        saveActiveAttempt();
+        announce(at >= 0 ? "Mark removed." : "Question " + (paper.index + 1) + " marked for review.");
+        paint();
+        return;
+      }
+      if (key === "r") {
+        event.preventDefault();
+        paper.reviewing = true;
+        announce("Review screen open.");
+        paint();
+      }
+    }
   });
 
   window.addEventListener("hashchange", function () {
@@ -4463,6 +4973,21 @@
     }
     render();
   }
+
+  /* Offline shell: cached on first visit, then the app and its question banks
+     stay available without a connection. Registration is best-effort. */
+  if ("serviceWorker" in navigator && /^https?:$/.test(window.location.protocol)) {
+    navigator.serviceWorker.register("sw.js").catch(function () {
+      /* The app works normally without a service worker (private mode, old browser). */
+    });
+  }
+
+  window.addEventListener("offline", function () {
+    toast("Offline — the cached shell, question banks and saved papers still work.", "is-warn");
+  });
+  window.addEventListener("online", function () {
+    toast("Back online — syncing progress.");
+  });
 
   boot();
 })();

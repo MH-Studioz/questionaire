@@ -33,6 +33,12 @@ git push origin main
 
 Cloud login only works after the public Firebase config is filled in and the providers are enabled. See [Firebase setup](#firebase-setup).
 
+## Release 0.7.1-alpha
+
+**0.7.1-alpha** gives every question two ids: the internal slug stays in the data, while the six-character code students see (`#Q8X49P`) is derived at runtime from the slug, so it never needs storing and adding a question cannot renumber another. Codes work in global search with or without `#`, copy from any question card, paper or review, and resolve to every owner when two questions collide (127 collisions across the full catalogue, none inside a single 1,000-question bank). A **Written** tab adds free-response prompts with a fixed rubric, self-grading and a model answer that unlocks after grading; drafts and grades follow the profile. The app now installs and works offline: a service worker caches the shell and question banks, so a paper can be sat with no connection, and absolute deadlines keep resumed mocks honest. The paper runner has a keyboard and screen-reader pass (A–D to answer, Enter to advance, arrows to move, F to mark, R to review, an announced live region and a focusable navigator). Source attribution for OpenStax, Illustrative Mathematics and LibreTexts sits in Settings, and the College Board SAT bank is linked with an explicit note that its items are proprietary and not copied.
+
+Playwright smoke tests cover paper submit → history, reload → resume, misses retake and the corrected badge; they run in GitHub Actions via `.github/workflows/ci.yml`.
+
 ## Release 0.7.0-alpha
 
 The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It covers the real login system, guest mode, the learning mode, the 443-subject catalogue, 47 languages, the language studio (word decks with pronunciation plus flashcards), AP/exam banks, the `questions/` pool restructure, and the known alpha limitations.
@@ -49,6 +55,14 @@ The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It cover
 | `styles.css` | Paper, Ink and OLED themes plus layout |
 | `app.js` | Routing, identity gate, practice, test papers, exam timer, review, search, local storage, cloud merge |
 | `database.js` | Categories, subjects, questions, study cards, tips, videos |
+| `sources.js` | Open education source registry with licences and attribution notes |
+| `open-bank.js` | Original drills aligned to OpenStax and Illustrative Mathematics chapters |
+| `frq-bank.js` | Free-response prompts with rubrics, descriptors and model answers |
+| `sw.js` | Service worker: offline shell and runtime cache |
+| `manifest.webmanifest` | Installable web app metadata |
+| `icon.svg` | App icon and favicon |
+| `tests/smoke.py` | Playwright smoke suite for history, resume, misses and corrected |
+| `.github/workflows/ci.yml` | CI job that serves the site and runs the smoke suite |
 | `ap-courses.js` | All 42 AP course packs and their exam-focused content |
 | `exam-prep.js` | SAT, ACT, PSAT, GED and GRE banks (1,000 questions per exam) |
 | `new-subjects.js` | Sixteen additional Mathematics, Science, Humanities, Language and Study Vault subjects |
@@ -67,6 +81,26 @@ The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It cover
 | `NEXT_STEPS.txt` | Plain-text plan for the work after 0.7.0-alpha, plus a release checklist |
 | `.nojekyll` | Stops GitHub Pages running Jekyll over the folder |
 | `.gitignore` | OS/editor junk and local Freebuff project markers |
+
+## Question codes and open sources
+
+Every question carries two identifiers:
+
+- **Internal id** (`calc-os-1`, `bio-5`, `sat-g0142`): the human-readable slug used in code, storage keys and debugging. It stays stable forever, so progress, bookmarks and saved papers survive.
+- **Display code** (`#Q8X49P`): a deterministic six-character code derived from the internal id with FNV-1a and a 31-character alphabet that omits `0`, `O`, `1`, `I` and `L`. It is generated on registration (`getDisplayId`), never stored in the content files, and can be copied from any question or typed into global search with or without the `#`.
+
+Codes are derived, not assigned: the same internal id always produces the same code on every device, and adding a question cannot renumber another one. Because the space is 31^6, a collision is theoretically possible; the lookup keeps every question that owns a code instead of hiding one. `buildIdLookup` returns the boot-time map, and `registerDisplayId` adds lazily generated bank questions to it as they materialise.
+
+### Open question sources
+
+| Source | Licence | How it is used |
+| --- | --- | --- |
+| [OpenStax](https://openstax.org/subjects) | CC BY 4.0 | Chapter-level scope map for the aligned calculus, precalculus, biology and chemistry drills in `open-bank.js` |
+| [Illustrative Mathematics](https://tasks.illustrativemathematics.org/) | CC BY 4.0 | Task-style reference for the aligned algebra and geometry drills |
+| [LibreTexts Commons](https://commons.libretexts.org/homework) | Mixed, per page | Referenced for supplementary homework; nothing is reproduced because licences vary by page |
+| [College Board SAT Suite Question Bank](https://satsuiteeducatorquestionbank.collegeboard.org/) | Proprietary | Linked for teacher reference only; no College Board items are copied |
+
+Items in `open-bank.js` are **original questions written for Questionaire** and aligned to the cited chapter or task family. Each one names its source and licence in the question UI and in Settings → Question sources. Original drills never claim to be official exam questions.
 
 The repository is self-contained: every file the page loads is tracked, there is no build step and nothing to install. Two things are deliberately not in it — the real Firebase keys (fill in `firebase-config.js`) and a `LICENSE`, which the owner has to choose.
 
@@ -143,6 +177,7 @@ The old `questionaire.progress.v1` guest record is no longer an active identity 
 - Vocabulary: union by subject and word; a word stays known if either side knows it, with the highest repetition count and the latest review date.
 - Bookmarks and mistakes: union the id sets, dropping ids that are no longer valid; generated `<subject-id>-g0001` ids survive before their lazy bank is loaded.
 - Corrected misses: union the corrected map by question id; a corrected question leaves the active mistake list instead of reappearing.
+- Written answers: per subject and prompt, keep the record with the later `updatedAt`; a draft and its self-grade travel together.
 - Saved papers: union attempts by attempt id, newest first, capped at the latest 60 sittings per profile. An unfinished sitting is merged by its latest save time.
 - Topic mastery: per subject and topic, keep the higher correct and total counts so replaying a topic cannot lower recorded mastery.
 - XP: merge with `max(local, cloud)` so replaying a question cannot double-count it.
@@ -183,6 +218,42 @@ These four values are public and safe to commit. Do **not** add a service-accoun
 6. Deploy the rules with `firebase deploy --only firestore:rules`, then test email/password sign-up, sign-in, reset, Google sign-in, Firestore write, reload and merge on the live origin.
 
 With the config blank, the login page says cloud login is unconfigured and offline profiles remain available. Once all four keys are present, the email/password forms and Google button appear automatically.
+
+### Written answers
+
+`frq-bank.js` adds free-response prompts to a subject by id:
+
+```js
+window.QUESTIONAIRE_FRQ_BANK = {
+  calculus: [{
+    id: "calc-frq-1",
+    title: "...", prompt: "...",
+    criteria: [{ id: "identify", label: "...", max: 2, descriptors: { 0: "...", 1: "...", 2: "..." } }],
+    model: ["..."], guidance: "..."
+  }]
+};
+```
+
+The rubric is shown before writing, the model answer only after a grade is saved, and each prompt is scored out of the sum of its criteria. Records live under `progress.frq[subjectId][promptId]` as `{ answer, scores, gradedAt, updatedAt }`; drafts save 450 ms after typing stops.
+
+### Offline and install
+
+`sw.js` precaches the shell and local scripts, then caches same-origin GET responses at runtime (versioned `?v=` URLs included). Navigation is network-first with a cached `index.html` fallback. The catalogue is generated in the browser, so once the shell is cached a subject bank, paper or mock exam opens with no connection; mock deadlines are absolute timestamps, so a resumed timed paper keeps its original clock. Bump `CACHE` in `sw.js` whenever app files change. Registration is best-effort and skipped on `file:` URLs.
+
+### Keyboard and screen readers
+
+In the paper runner, when focus is not in a control: **A–D** or **1–4** answer, **Enter** advances (or opens review on the last question), **←/→** move, **F** marks for review and **R** opens the review screen. Answers, marks and timer thresholds are written to a polite live region, and the current question receives focus after navigation. The navigator marks the current question with `aria-current`.
+
+### Tests
+
+```bash
+python -m pip install playwright
+python -m playwright install chromium
+python -m http.server 4173 --bind 127.0.0.1
+BASE_URL=http://127.0.0.1:4173 python tests/smoke.py
+```
+
+The suite creates a guest session, answers a full practice set, checks the history row, resumes a sitting after reload, retakes every miss correctly and expects the **Later corrected** badges in the review queue. CI runs the same script.
 
 ### Authentication limitations
 

@@ -19,6 +19,9 @@
                {
                  id, difficulty: "Beginner" | "Intermediate" | "Advanced",
                  tags: ["..."],
+                 // `id` is the internal slug. The student-facing #CODE is derived
+                 // at runtime by getDisplayId() in app.js and is never stored.
+                 // Optional: source + sourceRef point at a key in sources.js.
                  prompt: "LaTeX allowed: $x^2$",
                  options: ["...", "...", "...", "..."],
                  answer: 0,            // zero-based index of the correct option
@@ -46,6 +49,13 @@
    Question ids must be unique across the whole file — prefix them with the
    subject id (e.g. "bio-5"). LaTeX goes between $...$ (inline) or $$...$$
    (display). Nothing else needs to change.
+
+   IDS
+   ---
+   Every question has one internal slug (`id`) that is stable forever. The
+   six-character code students see and can search (#Q8X49P) is derived from it
+   by getDisplayId() in app.js, so it never needs to be written here and adding
+   a question cannot renumber another. See README → Question codes.
    ========================================================================== */
 
 const STUDY_DATA = {
