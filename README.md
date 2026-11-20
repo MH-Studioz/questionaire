@@ -9,7 +9,7 @@ Progress requires an identity:
 - **Cloud account** — Firebase email/password or Google. Progress syncs to the owner-only `users/{uid}` Firestore record.
 - **Offline profile** — a device-local profile with no password. It is the fallback when Firebase is not configured or the user chooses not to sign in.
 
-There is **no guest mode**. Opening the app without an identity redirects to `#/login`.
+There is also a **guest session**: one click on *Continue as guest* creates a device-local guest record so somebody can try the whole site before signing up. It is not a cloud identity, it is not password protected, and its progress stays in that browser until it is deleted or replaced by a real account.
 
 ## Run locally
 
@@ -60,11 +60,11 @@ The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It cover
 
 ## Content
 
-Eleven sections: AP Courses, Exam Prep, Mathematics, Sciences, Humanities, Engineering & Computing, Health & Medicine, Creative Arts, Social Sciences & Law, Languages and the Universal Study Vault. The catalogue has 443 subjects and a 443,000-question target: 1,000 questions per subject.
+Eleven sections: AP Courses, Exam Prep, Mathematics, Sciences, Humanities, Engineering & Computing, Health & Medicine, Creative Arts, Social Sciences & Law, Languages and the Universal Study Vault. The catalogue has 443 subjects and a 485,000-question target: 1,000 questions per subject, and 2,000 for each of the 42 AP courses.
 
-Every subject keeps its curated anchor questions first. The remaining questions are built lazily by `subject-banks.js` when a subject is opened or pulled into the review queue, so the static page does not boot all 443,000 cards at once. Search indexes a 20-question sample per subject. Generated ids use the stable `<subject-id>-g0001` format, which lets progress, bookmarks and mistakes survive before that subject's bank is materialised. The generated items are subject-specific practice drills rather than official exam questions.
+Every subject keeps its curated anchor questions first. The remaining questions are built lazily by `subject-banks.js` when a subject is opened or pulled into the review queue, so the static page does not boot all 485,000 cards at once. Search indexes a 20-question sample per subject. Generated ids use the stable `<subject-id>-g0001` format, which lets progress, bookmarks and mistakes survive before that subject's bank is materialised. The generated items are subject-specific practice drills rather than official exam questions.
 
-The AP shelf covers all 42 courses in the College Board catalogue for 2026-27: the Arts, English, History and Social Sciences, Math and Computer Science, Sciences, World Languages, AP Capstone and the two AP Career Kickstart courses. Each AP course has two curated exam-style questions, two study cards and two tips, and its bank is expanded to 1,000 questions by the shared generator. AP Networking is not included because it is a 2026-27 pilot and does not join the catalog until Fall 2027.
+The AP shelf covers all 42 courses in the College Board catalogue for 2026-27: the Arts, English, History and Social Sciences, Math and Computer Science, Sciences, World Languages, AP Capstone and the two AP Career Kickstart courses. Each AP course has two curated exam-style questions, two study cards and two tips, and its bank is expanded to 2,000 questions by the shared generator. AP world-language courses ask about their own course terms rather than beginner vocabulary. AP Networking is not included because it is a 2026-27 pilot and does not join the catalog until Fall 2027.
 
 **Exam prep** adds five exam subjects with 1,000 deterministic practice questions each:
 
@@ -86,7 +86,7 @@ To add a subject, copy a block in `database.js` or `new-subjects.js`, or add a c
 
 ## Navigation
 
-The home page starts with search, a progress summary, recommended subjects, the AP shelf and the SAT/ACT/PSAT/GED/GRE shelf. **Browse all subjects** opens the full catalogue with section filters; the AP shelf adds subject-area filters. On phones, the bottom bar keeps Home, Browse, AP, Review and Search one tap away. Large subject banks render 20 cards at a time with a **Load 20 more** control, and every Exam tab samples a timed section instead of trying to run all 1,000 questions.
+The home page starts with search, a progress summary, recommended subjects, the AP shelf and the SAT/ACT/PSAT/GED/GRE shelf. **Browse all subjects** opens the full catalogue with section filters; the AP shelf adds subject-area filters. Every subject opens with **Practice**, a **Learn** tab (guided study path, topic deep dives using real worked questions, video lessons and a YouTube lesson search), the **Word bank** for languages, **Study bank**, **Tips** and **Video lessons**. On phones, the bottom bar keeps Home, Browse, AP, Review and Search one tap away. Large subject banks render 20 cards at a time with a **Load 20 more** control, and every Exam tab samples a timed section instead of trying to run all 1,000 questions.
 
 ## Accounts and authentication
 

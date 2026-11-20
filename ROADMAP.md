@@ -17,7 +17,7 @@ This is the next-steps backlog after the 0.6-alpha release. The alpha is usable 
 
 Every vocabulary language now ships a 20-word starter deck with a pronunciation guide, a word bank and flashcards, and the practice bank adds a pronunciation prompt — 100 templates per language. That is a usable beginner study place, not yet a curriculum.
 
-- Grow each deck from 20 words to 100+ with parts of speech and example sentences.
+- Grow each deck from 20 words toward a 2,500-word core drawn from a licensed frequency list, with parts of speech and example sentences.
 - Add spaced repetition; the current flashcard session is a shuffle-and-reveal pass.
 - Add reading passages, short translations and listening exercises for intermediate levels.
 - Add a non-repeating question id strategy: word × prompt form × context.
@@ -50,6 +50,9 @@ Every vocabulary language now ships a 20-word starter deck with a pronunciation 
 - **Accessibility:** keyboard review of the full practice flow, focus management in the sidebar and login forms, reduced-motion support, contrast audit in all three themes.
 - **Performance:** measure first interaction on mobile, lazy-load large data files, cache generated banks and cap memory.
 - **Study quality:** per-topic mastery, spaced-repetition scheduling, confidence ratings and “why this answer is wrong” explanations.
+- **Learning mode depth:** a curated video per topic (not just a YouTube search), longer explanations, and comprehension checks between lessons.
+- **Guest upgrade:** one click to move a guest session’s progress into a named offline profile or cloud account.
+- **AP depth:** real course-unit content and more prompt families — the AP language banks now hold 2,000 questions but still repeat about 12 templates.
 - **Search:** ranking, recent searches, keyboard navigation through results and subject aliases.
 - **Content QA:** duplicate/near-duplicate detection across generated banks; answer-option sanity checks; subject-specific review queues.
 - **Local profile protection:** optional PIN or passphrase (still device-local, not a replacement for a real account).
@@ -69,6 +72,8 @@ Every vocabulary language now ships a 20-word starter deck with a pronunciation 
 
 - Live Firebase auth and Firestore sync are implemented but not verified against a real project in this repository.
 - Language decks cover 20 starter words per language; the pronunciation guides are English respellings, not IPA, and audio depends on device voices.
+- AP banks are deeper (2,000 questions) but still repeat a small number of prompt templates.
+- Guest sessions are device-local and are not a security boundary.
 - Offline profiles are not password protected.
 - No Firebase account deletion or email verification gate yet.
 - No automated test suite yet; verification is browser smoke testing plus static checks.

@@ -423,7 +423,7 @@
           ["mahadsanid", "thank you", "ma-had-SA-nid"],
           ["fadlan", "please", "FAD-lan"],
           ["nabadgelyo", "goodbye", "na-bad-GEL-yo"],
-          ["raali noqo", "sorry", "RAA-li NO-qo"]
+          ["raali noqo", "sorry", "RAH-li NO-ko"]
         ]],
         ["People", [
           ["saaxiib", "friend", "saa-KHEEB"],
@@ -443,8 +443,8 @@
           ["buug", "book", "boog"]
         ]],
         ["Verbs", [
-          ["cun", "to eat", "coon"],
-          ["cab", "to drink", "cab"],
+          ["cun", "to eat", "’oon"],
+          ["cab", "to drink", "’ab"],
           ["hadal", "to speak", "HA-dal"],
           ["tag", "to go", "tag"]
         ]]
@@ -456,7 +456,7 @@
       groups: [
         ["Greetings", [
           ["xin chào", "hello", "sin CHOW"],
-          ["cảm ơn", "thank you", "gam UHN"],
+          ["cảm ơn", "thank you", "gahm UHN"],
           ["làm ơn", "please", "lahm UHN"],
           ["tạm biệt", "goodbye", "tahm BYEET"],
           ["xin lỗi", "sorry", "sin LOY"]
@@ -473,10 +473,10 @@
           ["ba", "three", "bah"]
         ]],
         ["Everyday", [
-          ["nước", "water", "NUH-uhk"],
+          ["nước", "water", "NUH-uk"],
           ["bánh mì", "bread", "BAN mee"],
           ["nhà", "house", "nyah"],
-          ["sách", "book", "SACK"]
+          ["sách", "book", "SAHK"]
         ]],
         ["Verbs", [
           ["ăn", "to eat", "AHN"],
@@ -745,7 +745,7 @@
         ["Greetings", [
           ["سلام", "hello", "sa-LAAM"],
           ["شکریہ", "thank you", "shuk-REE-ya"],
-          ["برائے مہربانی", "please", "ba-RA-e meh-rba-NI"],
+          ["برائے مہربانی", "please", "ba-RAA-e meh-rbaa-NEE"],
           ["خدا حافظ", "goodbye", "khu-DA HAA-fiz"],
           ["معاف کیجیے", "sorry", "maaf KEE-jee-ye"]
         ]],
@@ -822,7 +822,7 @@
           ["ขอโทษ", "sorry", "kho-TOHT"]
         ]],
         ["People", [
-          ["เพื่อน", "friend", "pheuan"],
+          ["เพื่อน", "friend", "PHUEAN"],
           ["แม่", "mother", "MAE"],
           ["พ่อ", "father", "POR"],
           ["เด็ก", "child", "DEK"]
@@ -1373,7 +1373,7 @@
           ["ሶስት", "three", "sost"]
         ]],
         ["Everyday", [
-          ["ውሃ", "water", "WU-ha"],
+          ["ውሃ", "water", "WEE-ha"],
           ["ዳቦ", "bread", "DA-bo"],
           ["ቤት", "house", "bet"],
           ["መጽሐፍ", "book", "me-tsehaf"]
@@ -1453,7 +1453,7 @@
         ["Verbs", [
           ["ci", "to eat", "chee"],
           ["sha", "to drink", "sha"],
-          ["magana", "to speak", "ma-GA-na"],
+          ["yin magana", "to speak", "yeen ma-GA-na"],
           ["tafi", "to go", "TA-fee"]
         ]]
       ]
@@ -1465,7 +1465,7 @@
         ["Greetings", [
           ["bawo ni", "hello", "BAH-wo nee"],
           ["ẹ ṣé", "thank you", "eh SHEH"],
-          ["jọ̀ọ́", "please", "JAW-aw"],
+          ["jọ̀ọ́", "please", "jaw-AW"],
           ["ó dàbọ̀", "goodbye", "oh DAW-baw"],
           ["má bínú", "sorry", "ma BEE-noo"]
         ]],
@@ -1524,7 +1524,7 @@
         ]],
         ["Verbs", [
           ["rie", "to eat", "REE-eh"],
-          ["ṅụọ", "to drink", "n-OO-aw"],
+          ["ṅụọ", "to drink", "NG-oo-aw"],
           ["kwuo", "to speak", "KWOO-oh"],
           ["gaa", "to go", "GAH-ah"]
         ]]

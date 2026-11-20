@@ -37,10 +37,27 @@ This is the first alpha with a real identity system. Study routes now require a 
 - Signing out returns to `#/login`, not to a guest record.
 - Direct study routes redirect to the login page until an identity exists. Settings remains reachable so the Firebase setup guide can be opened before signing in.
 
+This build deliberately adds back a **narrow guest session** (one click, device-local, no sync) — not the old guest-first account panel. See [Guest mode](#guest-mode).
+
+### Guest mode
+
+- **Continue as guest** starts a one-click, device-local guest session on the sign-in page.
+- A guest is a local record, not a cloud identity: no password, no sync, progress stored under `questionaire.progress.v1.account.<id>`.
+- Switching to an offline profile or a cloud account keeps working; signing out returns to the sign-in page.
+- The identity gate still holds — nothing renders without a cloud user, an offline profile or a guest session.
+
+### Learning mode
+
+- A new **Learn** tab on all 443 subjects: a guided four-step path, topic deep dives, study cards and video lessons.
+- Deep dives come from the subject's own bank — the most common topics, a real question for each, the correct answer and the full step-by-step explanation, plus a jump straight to that card in practice.
+- Calculus surfaces derivatives, the chain rule, limits, integrals and definite integrals with worked steps, and plays its curated videos.
+- Every deep dive links to a YouTube lesson search for that exact topic; subjects with no curated video get a subject-level lesson search instead.
+- AP world-language courses link to the matching full language deck (Spanish, Mandarin Chinese, French, German, Italian, Japanese, Latin).
+
 ## Catalogue
 
 - **443 subjects**, 443 unique ids.
-- **443,000-question target**: 1,000 questions per subject.
+- **485,000-question target**: 1,000 questions per subject, 2,000 for each of the 42 AP courses.
 - **11 sections**: AP Courses, Exam Prep, Mathematics, Sciences, Humanities, Engineering & Computing, Health & Medicine, Creative Arts, Social Sciences & Law, Languages and the Universal Study Vault.
 - **42 AP courses**.
 - **5 exam banks**: SAT, ACT, PSAT/NMSQT, GED and GRE, each with 1,000 deterministic questions and a timed section.
@@ -101,6 +118,10 @@ Verified in the browser and static checks:
 - All 46 vocabulary subjects resolve a deck; English Language resolves none, as designed.
 - 920 words total, every one with an English gloss, a pronunciation guide and a theme.
 - 45,900 generated language questions (46 banks × 998) checked: four non-empty, distinct options and a valid answer index every time; at least 90 distinct prompt templates per language.
+- Pronunciation audit of the ten less common decks (Hausa, Igbo, Yoruba, Amharic, Zulu, Thai, Bengali, Urdu, Somali, Vietnamese) with the misleading respellings corrected.
+- Guest mode: one-click session created from the sign-in page, progress written to its own local key, sign-out returns to the gate.
+- Learn tab renders for a language, an AP course and calculus, with deep dives, worked steps, video blocks and the AP language-deck link.
+- AP banks now report a 2,000-question target and materialise without malformed options.
 - All eight AP world-language banks checked: zero filler options, zero beginner-vocabulary questions, 12 distinct prompts each.
 - Word bank, Listen fallback, mark-as-known, flashcards reveal/advance/summary and the word-bank search jump were exercised in the browser at 390px and desktop width.
 - Ancient Greek now uses Ancient Greek vocabulary; modern Greek remains separate.
@@ -132,7 +153,7 @@ These require a real Firebase project and public `firebase-config.js` values.
 4. Deploy `firestore.rules` with `firebase deploy --only firestore:rules`.
 5. Test sign-up, sign-in, reset, Google popup, save, reload and merge on the live origin.
 
-Asset query strings were bumped to `0.6.1-alpha` so browsers pick up the new language studio; the release itself is still **0.6-alpha**.
+Asset query strings were bumped to `0.6.2-alpha` so browsers pick up guest mode, learning mode and the deeper AP banks; the release itself is still **0.6-alpha**.
 
 Existing offline profiles keep their ids. Existing guest progress is migrated once. Old guest progress keys are removed after the first identity is created. Vocabulary mastery is merged on sign-in like any other progress.
 

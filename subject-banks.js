@@ -17,6 +17,7 @@
   if (!DATA || !Array.isArray(DATA.categories)) return;
 
   const TARGET = 1000;
+  const AP_TARGET = 2000;
   const CONTENT = window.ExamPrepContent || {};
 
   function hash(value) {
@@ -618,8 +619,20 @@
   }
 
   function apLanguageTerms(subject) {
-    const tags = (subject.tags || []).filter(Boolean);
-    const terms = tags.length > 2 ? tags.slice(1) : tags;
+    const terms = [];
+    const languageName = String((subject.tags || [])[0] || "").toLowerCase();
+    const add = function (value) {
+      const term = String(value || "").trim();
+      if (!term) return;
+      if (term.toLowerCase() === subject.title.toLowerCase()) return;
+      if (languageName && term.toLowerCase() === languageName) return;
+      if (terms.indexOf(term) >= 0) return;
+      terms.push(term);
+    };
+    (subject.tags || []).slice(1).forEach(add);
+    (subject._seedQuestions || []).forEach(function (question) {
+      (question.tags || []).forEach(add);
+    });
     return terms.length ? terms : [subject.title];
   }
 
@@ -629,7 +642,7 @@
     category.subjects.forEach(function (subject) {
       subject._seedQuestions = subject.questions.slice();
       subject._curatedCount = subject.questions.length;
-      subject.questionTarget = Math.max(TARGET, subject.questions.length);
+      subject.questionTarget = Math.max(/^ap-/.test(subject.id) ? AP_TARGET : TARGET, subject.questions.length);
       if (isApLanguageCourse(subject)) {
         subject._bankDomain = "concept";
         subject._terms = apLanguageTerms(subject);

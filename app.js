@@ -31,6 +31,7 @@
 
   const TABS = [
     { id: "practice", label: "Practice", icon: "list-checks" },
+    { id: "learn", label: "Learn", icon: "graduation-cap" },
     { id: "words", label: "Word bank", icon: "languages" },
     { id: "study", label: "Study bank", icon: "book-open" },
     { id: "tips", label: "Tips & hacks", icon: "lightbulb" },
@@ -424,7 +425,7 @@
     normalizeStreak();
   }
 
-  function createLocalAccount(name, email) {
+  function createLocalAccount(name, email, isGuest) {
     if (cloudIdentity()) {
       toast("Sign out of your cloud account before creating an offline profile.", "is-warn");
       return false;
@@ -450,6 +451,7 @@
       id: "local-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7),
       name: cleanName,
       email: cleanEmail,
+      guest: Boolean(isGuest),
       createdAt: new Date().toISOString()
     };
     const nextKey = accountStorageKey(account.id);
@@ -821,6 +823,148 @@
   }
 
   /* --------------------------------------------------------------------------
+     Learning mode — guided path, topic deep dives and video lessons
+     -------------------------------------------------------------------------- */
+
+  function subjectTopics(subject) {
+    const topics = new Map();
+    subject.questions.forEach(function (question) {
+      (question.tags || []).forEach(function (rawTag) {
+        const tag = String(rawTag || "").trim();
+        /* Skip the course's own name ("Spanish", "Calculus") as a topic. */
+        if (!tag || subject.title.toLowerCase().indexOf(tag.toLowerCase()) >= 0) return;
+        const steps = Array.isArray(question.explanation) ? question.explanation.length : 0;
+        const current = topics.get(tag);
+        if (!current) {
+          topics.set(tag, { tag: tag, total: 1, sample: question, steps: steps });
+          return;
+        }
+        current.total += 1;
+        if (steps > current.steps) {
+          current.sample = question;
+          current.steps = steps;
+        }
+      });
+    });
+    /* Never show the same worked example twice: use another question on that
+       topic, or drop the topic when the bank has no second example. */
+    const used = new Set();
+    return Array.from(topics.values())
+      .sort(function (a, b) { return b.total - a.total || a.tag.localeCompare(b.tag); })
+      .filter(function (lesson) {
+        if (!used.has(lesson.sample.id)) {
+          used.add(lesson.sample.id);
+          return true;
+        }
+        const alternative = subject.questions.find(function (question) {
+          return !used.has(question.id) && (question.tags || []).indexOf(lesson.tag) >= 0;
+        });
+        if (!alternative) return false;
+        lesson.sample = alternative;
+        used.add(alternative.id);
+        return true;
+      })
+      .slice(0, 8);
+  }
+
+  function youTubeSearch(query) {
+    return "https://www.youtube.com/results?search_query=" + encodeURIComponent(query);
+  }
+
+  function lessonHTML(entry, topic) {
+    const subject = entry.subject;
+    const question = topic.sample;
+    const steps = Array.isArray(question.explanation) ? question.explanation : [];
+    return (
+      '<article class="lesson card">' +
+      '<div class="lesson-head">' +
+      '<span class="lesson-kicker">Deep dive</span>' +
+      "<h3>" + esc(topic.tag) + "</h3>" +
+      '<span class="lesson-count">' + topic.total + " " + plural(topic.total, "question", "questions") + "</span>" +
+      "</div>" +
+      '<p class="lesson-prompt">' + esc(question.prompt) + "</p>" +
+      '<div class="lesson-answer"><span>Answer</span><strong>' + esc(question.options[question.answer]) + "</strong></div>" +
+      '<ol class="steps">' + steps.map(function (step) {
+        return '<li class="step"><span class="step-body">' + esc(step) + "</span></li>";
+      }).join("") + "</ol>" +
+      '<div class="lesson-actions">' +
+      '<button type="button" class="btn btn-ghost btn-sm" data-action="focus-question" data-qid="' + esc(question.id) + '" data-subject="' + esc(subject.id) + '"><i data-lucide="target"></i>Practise this card</button>' +
+      '<a class="btn btn-ghost btn-sm" href="' + youTubeSearch(subject.title + " " + topic.tag) + '" target="_blank" rel="noopener"><i data-lucide="play"></i>Find a video lesson</a>' +
+      "</div></article>"
+    );
+  }
+
+  function languageDeckSubject(subject) {
+    if (subject.track !== "languages") return null;
+    return SUBJECTS.find(function (entry) {
+      if (!packWords(entry.subject).length) return false;
+      const title = entry.subject.title;
+      if (subject.title.indexOf(title) >= 0) return true;
+      return title.split(" ").some(function (word) {
+        return word.length > 3 && subject.title.indexOf(word) >= 0;
+      });
+    }) || null;
+  }
+
+  function learnTabHTML(entry) {
+    const subject = entry.subject;
+    const topics = subjectTopics(subject);
+    const deckEntry = languageDeckSubject(subject);
+
+    const deck = deckEntry
+      ? '<div class="vocab-callout card">' +
+        '<span class="vocab-callout-icon"><i data-lucide="languages"></i></span>' +
+        "<div><h3>Full language deck</h3><p>This course is exam-level, so its questions stay on the exam. The words themselves live in the " + esc(deckEntry.subject.title) + " word bank and flashcards.</p></div>" +
+        '<div class="vocab-callout-actions">' +
+        '<a class="btn btn-ghost btn-sm" href="#/subject/' + esc(deckEntry.subject.id) + '/words">Open word bank</a>' +
+        '<button type="button" class="btn btn-teal btn-sm" data-action="open-flashcards" data-subject="' + esc(deckEntry.subject.id) + '">Flashcards</button>' +
+        "</div></div>"
+      : "";
+
+    const intro =
+      '<div class="learn-intro card">' +
+      '<span class="eyebrow">Learning mode</span>' +
+      "<h2>Learn " + esc(subject.title) + " properly</h2>" +
+      "<p>" + esc(subject.blurb) + "</p>" +
+      '<div class="learn-meta">' +
+      '<span><b>' + formatCount(questionTotal(subject)) + "</b> questions</span>" +
+      '<span><b>' + subject.study.length + "</b> study cards</span>" +
+      '<span><b>' + subject.videos.length + "</b> videos</span>" +
+      "</div>" +
+      (subject.examFormat ? '<p class="learn-format"><i data-lucide="calendar-check"></i>' + esc(subject.examFormat) + "</p>" : "") +
+      '<div class="learn-actions">' +
+      '<button type="button" class="btn btn-primary" data-action="focus-question" data-qid="' + esc(subject.questions[0] ? subject.questions[0].id : "") + '" data-subject="' + esc(subject.id) + '"><i data-lucide="play"></i>Start practising</button>' +
+      '<a class="btn btn-ghost" href="#/subject/' + esc(subject.id) + '/study"><i data-lucide="book-open"></i>Study cards</a>' +
+      '<a class="btn btn-ghost" href="' + youTubeSearch("learn " + subject.title) + '" target="_blank" rel="noopener"><i data-lucide="play"></i>Video lessons</a>' +
+      "</div></div>";
+
+    const path =
+      '<div class="learn-path card">' +
+      "<h3>How to work through this subject</h3>" +
+      '<ol class="learn-steps">' +
+      "<li><strong>Read the study cards.</strong> Get the vocabulary and the two or three rules that do most of the work.</li>" +
+      "<li><strong>Read one deep dive.</strong> Each one is a real question with every step of the reasoning spelled out.</li>" +
+      "<li><strong>Practise ten questions.</strong> Anything you miss lands in the review queue automatically.</li>" +
+      "<li><strong>Watch one video.</strong> Seeing it once fixes the shape of the idea before more practice.</li>" +
+      "</ol></div>";
+
+    const detail = topics.length
+      ? '<h3 class="learn-heading">Topic deep dives</h3><div class="lesson-grid">' + topics.map(function (topic) {
+        return lessonHTML(entry, topic);
+      }).join("") + "</div>"
+      : "";
+
+    const study =
+      '<h3 class="learn-heading">Study cards</h3>' + studyTabHTML(subject);
+
+    const videos = subject.videos.length
+      ? '<h3 class="learn-heading">Video lessons</h3>' + videosTabHTML(subject)
+      : '<div class="learn-videos-empty card"><h3>No curated video yet</h3><p>Use the video button above: it opens YouTube results for this subject, and every deep dive links to its own topic search.</p></div>';
+
+    return intro + deck + path + detail + study + videos;
+  }
+
+  /* --------------------------------------------------------------------------
      Language studio — word decks, pronunciation and flashcards
      -------------------------------------------------------------------------- */
 
@@ -992,7 +1136,7 @@
       '<div class="wordbank-copy">' +
       '<span class="eyebrow">High-frequency starter deck</span>' +
       "<h2>" + esc(subject.title) + " · " + total + " words</h2>" +
-      "<p>Everyday words first, each with a plain-English pronunciation guide. Tap Listen, say it out loud, then mark it known.</p></div>" +
+      "<p>Everyday words first, each with a plain-English pronunciation guide. Tap Listen, say it out loud, then mark it known. The guides are approximations — trust the audio and a native speaker over the spelling.</p></div>" +
       '<div class="wordbank-score"><strong>' + known + "/" + total + "</strong><span>words known</span></div>" +
       '<div class="wordbank-progress"><div class="progress"><div class="progress-bar" style="width:' + pct + '%"></div></div></div>' +
       '<div class="wordbank-actions">' +
@@ -1087,8 +1231,8 @@
 
     if (activeAccount) {
       const name = activeAccount.name;
-      const detail = activeAccount.email || "Device profile";
-      const syncNote = "Local profile · offline only";
+      const detail = activeAccount.guest ? "Guest session" : activeAccount.email || "Device profile";
+      const syncNote = activeAccount.guest ? "Guest · progress stays in this browser" : "Local profile · offline only";
       return (
         '<div class="account-summary">' +
         '<span class="account-avatar">' + esc(name.charAt(0).toUpperCase()) + "</span>" +
@@ -1118,7 +1262,7 @@
       note.textContent = user
         ? (user.provider === "google.com" ? "Google account · synced" : "Email account · synced")
         : activeAccount
-        ? "Local profile · offline only"
+        ? (activeAccount.guest ? "Guest · this browser only" : "Local profile · offline only")
         : "Sign in required";
     }
   }
@@ -1617,6 +1761,7 @@
     const tabs = visibleTabs.map(function (tab) {
       let count = 0;
       if (tab.id === "practice") count = subject.questions.length;
+      if (tab.id === "learn") count = subjectTopics(subject).length;
       if (tab.id === "words") count = packWords(subject).length;
       if (tab.id === "study") count = subject.study.length;
       if (tab.id === "tips") count = subject.tips.length;
@@ -1630,7 +1775,8 @@
     }).join("");
 
     let panel = "";
-    if (state.route.tab === "words") panel = wordsTabHTML(entry);
+    if (state.route.tab === "learn") panel = learnTabHTML(entry);
+    else if (state.route.tab === "words") panel = wordsTabHTML(entry);
     else if (state.route.tab === "study") panel = studyTabHTML(subject);
     else if (state.route.tab === "tips") panel = tipsTabHTML(subject);
     else if (state.route.tab === "videos" && subject.videos.length) panel = videosTabHTML(subject);
@@ -2183,7 +2329,7 @@
 
   function loginProfileRow(account) {
     const active = activeAccount && activeAccount.id === account.id;
-    const detail = account.email || "Device profile";
+    const detail = account.guest ? "Guest session" : account.email || "Device profile";
     return (
       '<div class="profile-row' + (active ? " active" : "") + '">' +
       '<button type="button" class="profile-main" data-action="local-switch" data-account="' + esc(account.id) + '">' +
@@ -2218,6 +2364,12 @@
       '<button class="btn btn-primary" type="submit"><i data-lucide="log-in"></i>' + (activeAccount ? "Add another profile" : "Create offline profile") + "</button>" +
       "</form>" +
       '<p class="account-note">Local profiles are stored in this browser and are <strong>not password protected</strong>. Sign in above for a real cross-device account.</p>' +
+      (hasIdentity()
+        ? ""
+        : '<div class="guest-block">' +
+          '<button type="button" class="account-btn" data-action="guest-signin"><i data-lucide="user-round"></i>Continue as guest</button>' +
+          '<p class="account-note">Guest mode keeps progress in this browser only — no password, no sync. Create a profile or sign in whenever you want to keep it.</p>' +
+          "</div>") +
       "</section>";
 
     const profileCard = !cloudUser && accountStore.accounts.length
@@ -2567,6 +2719,25 @@
     if (action === "focus-search") {
       searchInput.focus();
       searchInput.select();
+      return;
+    }
+
+    if (action === "guest-signin") {
+      createLocalAccount("Guest", "", true);
+      if (activeAccount) resumeAfterAuth();
+      return;
+    }
+
+    if (action === "focus-question" && questionId && subjectId) {
+      const filters = getFilters(subjectId);
+      filters.mode = "practice";
+      filters.difficulty = "All";
+      filters.limit = 40;
+      focusQid = questionId;
+      stopExamTimer();
+      exam = null;
+      pendingTarget = '[data-card="' + questionId + '"]';
+      go("#/subject/" + subjectId + "/practice");
       return;
     }
 
