@@ -1,0 +1,161 @@
+QUESTIONAIRE — NEXT STEPS (BRAINSTORM ONLY)
+==========================================
+
+Nothing in this file is implemented. It is the plan after the 0.6-alpha
+guest/learn/AP round, ordered by value per unit of risk.
+
+
+WHAT THE REPOSITORY CONTAINS TODAY
+----------------------------------
+25 tracked files, no build step, no dependencies to install.
+
+  index.html                       page shell, fonts, CDN scripts
+  styles.css                       Paper / Ink / OLED themes, layout
+  app.js                           router, identity gate, practice, exam,
+                                   learn, word bank, flashcards, review,
+                                   search, progress, cloud merge
+  database.js                      categories, subjects, questions, cards, tips
+  ap-courses.js                    all 42 AP course packs
+  exam-prep.js                     SAT / ACT / PSAT / GED / GRE banks
+  new-subjects.js                  16 extra subjects
+  expanded-*.js (9 files)          the large generated catalogue
+  language-packs.js                46 word decks, 20 words each, pronunciation
+  subject-banks.js                 lazy bank generator (1,000 / 2,000 AP)
+  firebase-config.js               public web config, blank until a project exists
+  firebase-sync.js                 email/password + Google auth, Firestore sync
+  firestore.rules                  users/{uid} owner-only rules
+  firebase.json                    hosting config
+  README.md                        run, publish, content, accounts
+  RELEASE_NOTES.md                 0.6-alpha feature/fix/limitation list
+  ROADMAP.md                       prioritized post-alpha work
+  NEXT_STEPS.txt                   this file
+
+External dependencies (loaded by index.html, nothing to install): Tailwind
+CDN, Lucide icons, KaTeX, Google Fonts, Firebase compat SDK.
+
+Not in the repository because it is user/legal specific:
+  - real Firebase keys (fill firebase-config.js)
+  - a LICENSE file (the owner must choose one)
+  - custom domain / CNAME (none configured)
+
+Publish: push to main; GitHub Pages serves the branch root. `.nojekyll` keeps
+Pages from running Jekyll over the folder.
+
+
+1. HONEST WORD DECKS: 20 -> 2,500 WORDS PER LANGUAGE
+---------------------------------------------------
+Current state: 46 decks x 20 curated words = 920 words. A 2,500-word list for
+46 languages is ~115,000 entries; hand-writing it would mean inventing
+vocabulary, translations and pronunciation, so it was not faked.
+
+  1. Source, don't invent. Use a licence-compatible frequency list per
+     language (OpenSubtitles/Wikipedia frequency corpora, Wiktionary/Wikidata
+     lexemes under CC BY-SA, or a paid list with redistribution rights) and
+     record the licence and attribution in SOURCES.md.
+  2. Translate with review. Machine translation is a draft only; every
+     language needs a native-speaker pass over at least the top 1,000 words.
+  3. Pronunciation at scale. Move to IPA (verifiable against Wiktionary) plus
+     an optional respelling, and generate audio from a licensed TTS voice per
+     language, cached as files, with browser speech as fallback.
+  4. Structure per entry: word, translation, part of speech, gender/class,
+     example sentence + translation, frequency rank, theme.
+  5. Roll out by demand: 250 words for the ten most-studied languages, then
+     1,000, then 2,500. Never ship a half-filled deck.
+  6. In-app "report a bad translation" that stores the card id, plus a
+     reviewer sheet per language.
+
+
+2. AP: FROM 2,000 DRILLS TO A REAL COURSE
+-----------------------------------------
+Current state: 2,000 questions per AP course, but each world-language bank
+still repeats about 12 prompt templates and reuses the same concept families.
+
+  - Map questions to CED units and skills; show a unit/skill breakdown and a
+    "weakest unit" recommendation on the subject page.
+  - 5-10x the prompt families per course (stimulus sets, data interpretation,
+    document analysis, error analysis, "best supported claim").
+  - Free response: FRQ-style prompts with a self-grading rubric, model answer
+    and score bands. Absent from the whole site today.
+  - AP languages: keep concept practice, add integrated performance tasks
+    (read/listen prompt, typed response, rubric) and an optional warm-up that
+    links to the full language deck.
+  - Score projection from weighted practice, clearly labelled as an estimate.
+  - Cite the College Board CED per course and state that items are original
+    drills, not released exam questions.
+
+
+3. LEARNING MODE: FROM LINKS TO A COURSE
+----------------------------------------
+Current state: guided path, deep dives built from the subject's own bank,
+study cards, two curated videos per subject, per-topic YouTube searches.
+
+  - Real video library: pick and embed specific videos per topic with channel
+    attribution and a fallback when a link rots. 443 subjects x 3-5 topics is
+    1,300-2,000 manual picks.
+  - Lesson sequencing: ordered lessons with "next", completion state, and a
+    check-for-understanding drawn from the bank.
+  - Visual explanations: LaTeX/MathJax for maths, diagrams for science,
+    annotated code for computing (currently plain text steps).
+  - Prerequisite graph: "you are missing X" when a missed question depends on
+    an earlier topic, linking back to that deep dive.
+  - Study planner: turn the review queue and weak topics into "today: 20
+    cards, 1 lesson, 1 video".
+
+
+4. GUEST MODE: A FUNNEL, NOT A DEAD END
+---------------------------------------
+Current state: one click, device-local, no sync, cannot be kept.
+
+  - One-click "Keep my progress" -> create an offline profile or cloud account
+    and adopt the guest's progress through the existing merge policy.
+  - Expiry warning ("clearing site data clears this session") and a visible
+    last-saved time.
+  - Keep the trust boundary explicit: guest ids authorise nothing server-side.
+
+
+5. CONTENT QUALITY AND TESTS
+----------------------------
+  - Content invariants as a test: every subject has >=1 study card and >=1
+    tip, ids unique, four distinct options per generated question, bank sizes
+    exactly at target. This round checked them by hand in the browser; they
+    belong in CI.
+  - Playwright smoke suite: guest sign-in, answer a question, submit an exam,
+    word-bank flashcard, learn deep-dive jump, route guard.
+  - Real Firebase test project for sign-up, sign-in, reset, rules and
+    two-account isolation. Never tested: the config is blank.
+  - Accessibility pass: focus order, ARIA on tabs and card reveal, contrast in
+    all three themes, 200% zoom.
+  - Performance budget: 485,000 cards never boot at once today; keep that
+    invariant and measure first paint and time-to-first-question on a phone.
+
+
+6. PRODUCT IDEAS WORTH CONSIDERING
+----------------------------------
+  - Teacher/class packs: a shareable subject subset plus progress export.
+  - Printable/offline packs (PDF or a PWA cache) for low-connectivity study.
+  - Streak reminders via a local notification or calendar export (there is no
+    email infrastructure today).
+  - Internationalisation of the UI (Spanish, French, Arabic, Hindi) and RTL.
+  - Local-first analytics (on-device counts) instead of adding a tracker.
+
+
+SUGGESTED ORDER
+---------------
+  1. Guest -> account upgrade (small, high conversion value).
+  2. Content invariants and smoke tests in CI (protects everything else).
+  3. AP: unit/skill mapping and FRQ rubrics (biggest depth win).
+  4. Language decks: sourced 250-word pass for the top ten languages.
+  5. Curated video library, 20 subjects at a time.
+  6. Real Firebase verification and an accessibility pass.
+
+
+RELEASE CHECKLIST (WHAT THE PROJECT NEEDS TO SHIP A BUILD)
+---------------------------------------------------------
+  [ ] Bump ?v= on styles.css, language-packs.js, subject-banks.js, app.js in
+      index.html so browsers do not serve cached copies.
+  [ ] Update RELEASE_NOTES.md and the README release paragraph.
+  [ ] Run the content checks in the browser (counts, options, console errors).
+  [ ] Commit, push to main, confirm Pages serves the new ?v=.
+  [ ] Re-point the version tag if the release covers the new commit.
+  [ ] Fill firebase-config.js and enable Email/Password + Google before
+      claiming cloud login works.

@@ -55,8 +55,14 @@ The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It cover
 | `firebase-config.js` | Public Firebase web config (blank until the project exists) |
 | `firebase-sync.js` | Email/password + Google auth, password reset, owner-only Firestore reads and writes |
 | `firestore.rules` | `users/{uid}` owner-only rules |
+| `firebase.json` | Hosting config (not required for GitHub Pages) |
 | `RELEASE_NOTES.md` | 0.6-alpha feature, fix and limitation list |
 | `ROADMAP.md` | Prioritized next steps after the alpha |
+| `NEXT_STEPS.txt` | Plain-text plan for the work after 0.6-alpha, plus a release checklist |
+| `.nojekyll` | Stops GitHub Pages running Jekyll over the folder |
+| `.gitignore` | OS/editor junk and local Freebuff project markers |
+
+The repository is self-contained: every file the page loads is tracked, there is no build step and nothing to install. Two things are deliberately not in it — the real Firebase keys (fill in `firebase-config.js`) and a `LICENSE`, which the owner has to choose.
 
 ## Content
 
