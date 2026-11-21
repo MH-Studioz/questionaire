@@ -19,6 +19,10 @@
   "use strict";
 
   const CONFIG = window.FIREBASE_CONFIG || {};
+  /* Local development hook. Set in firebase-config.js only while testing:
+       emulator: { host: "127.0.0.1", authPort: 9099, firestorePort: 8080 }
+     Production config leaves it out, so the SDK always talks to Firebase. */
+  const EMULATOR = CONFIG.emulator && CONFIG.emulator.host ? CONFIG.emulator : null;
   const REQUIRED = ["apiKey", "authDomain", "projectId", "appId"];
   const CONFIGURED = REQUIRED.every(function (key) {
     return typeof CONFIG[key] === "string" && CONFIG[key].trim() && CONFIG[key].indexOf("YOUR_") < 0;
@@ -31,7 +35,7 @@
   let auth = null;
   let db = null;
   let sdk = null;
-  let started = false;
+  let startPromise = null;
   let operation = null;
   let error = null;
   let user = null;
@@ -163,9 +167,15 @@
     return sdk;
   }
 
-  async function start() {
-    if (!CONFIGURED || started) return;
-    started = true;
+  /* One shared boot promise: a sign-in clicked while the SDK is still
+     downloading waits for it instead of returning false with no feedback. */
+  function start() {
+    if (!CONFIGURED) return Promise.resolve();
+    if (!startPromise) startPromise = boot();
+    return startPromise;
+  }
+
+  async function boot() {
     state.status = "loading";
     publish();
     try {
@@ -173,6 +183,18 @@
       app = loaded.app.initializeApp(CONFIG);
       auth = loaded.auth.getAuth(app);
       db = loaded.firestore.getFirestore(app);
+
+      if (EMULATOR) {
+        const host = String(EMULATOR.host);
+        const authPort = Number(EMULATOR.authPort) || 9099;
+        const firestorePort = Number(EMULATOR.firestorePort) || 8080;
+        try {
+          loaded.auth.connectAuthEmulator(auth, "http://" + host + ":" + authPort, { disableWarnings: true });
+          loaded.firestore.connectFirestoreEmulator(db, host, firestorePort);
+        } catch (emulatorError) {
+          /* A second start on the same instance already has the emulator wired. */
+        }
+      }
 
       try {
         await loaded.auth.setPersistence(auth, loaded.auth.browserLocalPersistence);
@@ -338,14 +360,113 @@
     }
   }
 
+  /* One Firestore document caps at 1 MiB. Per-item records grow with the
+     catalogue (13,760 questions and rising), so they live in chunk documents
+     under users/{uid}/items and the main document keeps the rest. Measured on
+     the emulator: a full-catalogue profile is ~1.5 MB of per-item records. */
+  const ITEMS_CHUNK_BYTES = 112 * 1024;
+  const MAX_ITEMS_CHUNKS = 24;
+  const MAIN_DOC_BUDGET = 900 * 1024;
+  let chunkCache = null;
+
+  function byteLength(text) {
+    if (typeof TextEncoder === "function") return new TextEncoder().encode(text).length;
+    return unescape(encodeURIComponent(text)).length;
+  }
+
+  /* The emulator only rejects a single oversized value, not an oversized
+     document, so the client keeps the main document under budget itself.
+     Oldest sittings go first, then the bulkier secondary collections. The
+     local record is never trimmed. */
+  function fitCore(core) {
+    if (byteLength(JSON.stringify(core)) <= MAIN_DOC_BUDGET) return core;
+    const trimmed = Object.assign({}, core);
+    trimmed.syncTrimmed = true;
+    const steps = [
+      function () { trimmed.attempts = (Array.isArray(trimmed.attempts) ? trimmed.attempts : []).slice(0, 20); },
+      function () { trimmed.attempts = (trimmed.attempts || []).slice(0, 5); },
+      function () { delete trimmed.topicStats; },
+      function () { trimmed.corrected = {}; trimmed.bookmarks = []; trimmed.mistakes = []; },
+      function () { trimmed.vocab = {}; trimmed.attempts = []; }
+    ];
+    for (let index = 0; index < steps.length; index += 1) {
+      if (byteLength(JSON.stringify(trimmed)) <= MAIN_DOC_BUDGET) break;
+      steps[index]();
+    }
+    return trimmed;
+  }
+
+  function chunkItems(answered) {
+    const keys = Object.keys(answered || {});
+    const bodies = [];
+    let bucket = {};
+    let size = 2;
+    let count = 0;
+    keys.forEach(function (key) {
+      const piece = JSON.stringify(key) + ":" + JSON.stringify(answered[key]);
+      if (count && size + piece.length + 1 > ITEMS_CHUNK_BYTES) {
+        bodies.push(JSON.stringify(bucket));
+        bucket = {};
+        size = 2;
+        count = 0;
+      }
+      bucket[key] = answered[key];
+      size += piece.length + 1;
+      count += 1;
+    });
+    if (count) bodies.push(JSON.stringify(bucket));
+    return bodies;
+  }
+
+  function itemDoc(uid, index) {
+    return sdk.firestore.doc(db, "users", uid, "items", "chunk-" + index);
+  }
+
   async function loadProgress() {
     if (!CONFIGURED || !db || !auth || !auth.currentUser) return null;
+    const uid = auth.currentUser.uid;
     try {
-      const reference = sdk.firestore.doc(db, "users", auth.currentUser.uid);
+      const reference = sdk.firestore.doc(db, "users", uid);
       const result = await sdk.firestore.getDoc(reference);
       if (!result.exists()) return null;
       const data = result.data();
-      return data && data.progress && typeof data.progress === "object" ? data.progress : null;
+      if (!data || !data.progress || typeof data.progress !== "object") return null;
+      const progress = Object.assign({}, data.progress);
+      const count = Math.max(0, Math.min(Number(progress.itemChunks) || 0, MAX_ITEMS_CHUNKS));
+
+      if (count > 0) {
+        const snapshots = await Promise.all(
+          Array.from({ length: count }, function (_, index) {
+            return sdk.firestore.getDoc(itemDoc(uid, index)).catch(function () { return null; });
+          })
+        );
+        const answered = {};
+        const bodies = [];
+        snapshots.forEach(function (snapshot, index) {
+          const body = snapshot && snapshot.exists() ? String((snapshot.data() || {}).body || "") : "";
+          bodies[index] = body;
+          if (!body) return;
+          try {
+            const parsed = JSON.parse(body);
+            if (parsed && typeof parsed === "object") {
+              Object.keys(parsed).forEach(function (key) { answered[key] = parsed[key]; });
+            }
+          } catch (parseError) {
+            /* One damaged chunk must not lose the rest of the profile. */
+          }
+        });
+        progress.answered = answered;
+        chunkCache = { uid: uid, bodies: bodies };
+      } else {
+        /* Profiles written before chunking keep their inline answer records. */
+        if (!progress.answered || typeof progress.answered !== "object") progress.answered = {};
+        chunkCache = { uid: uid, bodies: [] };
+      }
+
+      delete progress.itemChunks;
+      delete progress.itemCount;
+      delete progress.itemsTruncated;
+      return progress;
     } catch (loadError) {
       fail(loadError);
       return null;
@@ -354,16 +475,45 @@
 
   async function saveProgress(progress) {
     if (!CONFIGURED || !db || !auth || !auth.currentUser) return false;
+    const uid = auth.currentUser.uid;
     try {
-      const reference = sdk.firestore.doc(db, "users", auth.currentUser.uid);
-      await sdk.firestore.setDoc(
-        reference,
-        {
-          progress: progress,
-          updatedAt: sdk.firestore.serverTimestamp()
-        },
+      const core = {};
+      Object.keys(progress || {}).forEach(function (key) {
+        if (key === "answered") return;
+        core[key] = progress[key];
+      });
+
+      const answered = (progress && progress.answered) || {};
+      const bodies = chunkItems(answered);
+      if (bodies.length > MAX_ITEMS_CHUNKS) {
+        bodies.length = MAX_ITEMS_CHUNKS;
+        core.itemsTruncated = true;
+      }
+      core.itemChunks = bodies.length;
+      core.itemCount = Object.keys(answered).length;
+      const bounded = fitCore(core);
+
+      const previous = chunkCache && chunkCache.uid === uid ? chunkCache.bodies : [];
+      const batch = sdk.firestore.writeBatch(db);
+      batch.set(
+        sdk.firestore.doc(db, "users", uid),
+        { progress: bounded, updatedAt: sdk.firestore.serverTimestamp() },
         { merge: true }
       );
+      bodies.forEach(function (body, index) {
+        if (previous[index] === body) return;
+        batch.set(itemDoc(uid, index), {
+          body: body,
+          index: index,
+          updatedAt: sdk.firestore.serverTimestamp()
+        });
+      });
+      for (let index = bodies.length; index < previous.length; index += 1) {
+        batch.delete(itemDoc(uid, index));
+      }
+
+      await batch.commit();
+      chunkCache = { uid: uid, bodies: bodies };
       error = null;
       if (state.status === "error") state.status = "signed-in";
       publish();

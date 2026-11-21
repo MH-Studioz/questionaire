@@ -33,6 +33,27 @@ git push origin main
 
 Cloud login only works after the public Firebase config is filled in and the providers are enabled. See [Firebase setup](#firebase-setup).
 
+## Release 0.7.2-alpha
+
+**0.7.2-alpha** is the first release checked against a real Firestore emulator. `tests/emulator.py` drives the app in Chromium with the Auth and Firestore emulators and asserts the merge, the two-device sitting and the document sizes with the production profile shape (13,760-question catalogue, 60 saved sittings).
+
+| Check | Measured |
+| --- | --- |
+| Two devices, one account | 900 + 600 answered records merged to 1,500; 60 sittings kept |
+| Unfinished sitting on each device | newest is the resume target, the other is kept and resumable |
+| Full-catalogue profile | 15 chunk documents; main document 143 KiB, largest chunk 126 KiB |
+| Headroom under Firestore's 1 MiB document limit | 880 KiB |
+| Legacy single-document profile | loads, merges, then re-chunks |
+| Rules | another account's write refused (403), own chunk readable |
+
+Three defects the run exposed are fixed:
+
+- **Cloud init race.** A sign-in clicked while the Firebase SDK was still downloading returned `false` with no message. `start()` now hands every caller the same boot promise, so the click waits for initialization instead of failing silently.
+- **The 1 MiB ceiling.** One document cannot hold every per-item record: 5,200 answered questions already reached 682 KB, and the full catalogue needs about 1.9 MB. Records now live in `users/{uid}/items/chunk-N` (about 112 KiB each, capped at 24) and are written in the same batch as the main document, which stays at 143 KiB. Chunks that did not change since the last save are skipped. The local record is never trimmed; if the main document would still exceed 900 KiB, the uploaded copy drops the oldest sittings first.
+- **Two devices, two unfinished papers.** The merge kept only the newer sitting and silently dropped the other. Both are kept now: the newer resumes, and up to three others appear on the dashboard as *Paused on another device* with Resume and Discard.
+
+`firestore.rules` adds the owner-only rule for the `items` subcollection. See [Verifying cloud sync](#verifying-cloud-sync) for the emulator commands.
+
 ## Release 0.7.1-alpha
 
 **0.7.1-alpha** gives every question two ids: the internal slug stays in the data, while the six-character code students see (`#Q8X49P`) is derived at runtime from the slug, so it never needs storing and adding a question cannot renumber another. Codes work in global search with or without `#`, copy from any question card, paper or review, and resolve to every owner when two questions collide (127 collisions across the full catalogue, none inside a single 1,000-question bank). A **Written** tab adds free-response prompts with a fixed rubric, self-grading and a model answer that unlocks after grading; drafts and grades follow the profile. The app now installs and works offline: a service worker caches the shell and question banks, so a paper can be sat with no connection, and absolute deadlines keep resumed mocks honest. The paper runner has a keyboard and screen-reader pass (A–D to answer, Enter to advance, arrows to move, F to mark, R to review, an announced live region and a focusable navigator). Source attribution for OpenStax, Illustrative Mathematics and LibreTexts sits in Settings, and the College Board SAT bank is linked with an explicit note that its items are proprietary and not copied.
@@ -62,6 +83,8 @@ The complete release list is in [`RELEASE_NOTES.md`](RELEASE_NOTES.md). It cover
 | `manifest.webmanifest` | Installable web app metadata |
 | `icon.svg` | App icon and favicon |
 | `tests/smoke.py` | Playwright smoke suite for history, resume, misses and corrected |
+| `tests/emulator.py` | Firestore emulator suite: merge, two-device sitting, document sizes, rules |
+| `firebase.json` | Firestore rules path and local emulator ports |
 | `.github/workflows/ci.yml` | CI job that serves the site and runs the smoke suite |
 | `ap-courses.js` | All 42 AP course packs and their exam-focused content |
 | `exam-prep.js` | SAT, ACT, PSAT, GED and GRE banks (1,000 questions per exam) |
@@ -178,7 +201,8 @@ The old `questionaire.progress.v1` guest record is no longer an active identity 
 - Bookmarks and mistakes: union the id sets, dropping ids that are no longer valid; generated `<subject-id>-g0001` ids survive before their lazy bank is loaded.
 - Corrected misses: union the corrected map by question id; a corrected question leaves the active mistake list instead of reappearing.
 - Written answers: per subject and prompt, keep the record with the later `updatedAt`; a draft and its self-grade travel together.
-- Saved papers: union attempts by attempt id, newest first, capped at the latest 60 sittings per profile. An unfinished sitting is merged by its latest save time.
+- Saved papers: union attempts by attempt id, newest first, capped at the latest 60 sittings per profile.
+- Unfinished sittings: the newest save becomes the resume target; up to three others are kept in `progress.paused` and offered on the dashboard. The same paper saved on two devices keeps only the later save.
 - Topic mastery: per subject and topic, keep the higher correct and total counts so replaying a topic cannot lower recorded mastery.
 - XP: merge with `max(local, cloud)` so replaying a question cannot double-count it.
 - Streak: keep the latest study date and the best streak; the current streak is normalized on load.
@@ -196,6 +220,12 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // Per-item answer records, split into chunks so the profile never hits
+      // the 1 MiB document limit. Same owner-only rule.
+      match /items/{chunk} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
     }
   }
 }
@@ -218,6 +248,19 @@ These four values are public and safe to commit. Do **not** add a service-accoun
 6. Deploy the rules with `firebase deploy --only firestore:rules`, then test email/password sign-up, sign-in, reset, Google sign-in, Firestore write, reload and merge on the live origin.
 
 With the config blank, the login page says cloud login is unconfigured and offline profiles remain available. Once all four keys are present, the email/password forms and Google button appear automatically.
+
+### Verifying cloud sync
+
+`tests/emulator.py` runs the app against the local Auth and Firestore emulators (ports from `firebase.json`) and asserts the merge, the two-device sitting, the document sizes and the rules:
+
+```bash
+firebase emulators:start --only auth,firestore --project questionaire-emulator
+python tests/emulator.py          # BASE_URL defaults to http://127.0.0.1:5173
+```
+
+The suite intercepts `firebase-config.js` in the browser and answers with an emulator config, so the committed config stays blank. `firebase-sync.js` only connects to an emulator when the config carries `emulator: { host, authPort, firestorePort }`.
+
+The emulator rejects a single oversized value but does not enforce the 1 MiB document limit, which is why the client keeps the main document under 900 KiB on its own.
 
 ### Written answers
 

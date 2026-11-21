@@ -1,3 +1,43 @@
+# Questionaire 0.7.2-alpha — Emulator-verified sync and a bounded document
+
+Released 21 November 2026.
+
+A portable Node 22 runtime and Temurin JDK 17 were installed locally so the Firestore emulator could finally be run against the real app. This release reports measured numbers, fixes the three defects that run exposed, and ships the tests that caught them.
+
+## What the emulator run measured
+
+Profile shape: the production catalogue (13,760 questions), 60 saved sittings, 900 answered records on device A and 600 on device B.
+
+| Check | Result |
+| --- | --- |
+| Merge of two devices on one account | 1,500 answered records, 60 sittings, union of bookmarks, mistakes, corrected, vocabulary and written answers |
+| Unfinished sitting saved on both devices | newer save resumes; the older stays in the paused list |
+| Main cloud document | 146,709 bytes (143.3 KiB) |
+| Largest chunk document | 129,099 bytes (126.1 KiB) |
+| Headroom under the 1 MiB limit | 880.7 KiB |
+| Legacy single-document profile | loads, merges and is re-chunked into 15 documents |
+| Rules | foreign write refused with 403; owner reads own chunk |
+
+For contrast, the pre-release single document held 682,330 bytes at only 5,200 answered questions, and the full catalogue needs roughly 1.9 MB of per-item records — comfortably past the limit, where every write would have failed permanently.
+
+## Fixed
+
+- **Silent sign-in failure on load.** Calling sign-in while the SDK modules were still importing returned `false` without an error, because `start()` had already marked itself started and returned immediately. It now returns one shared boot promise, so the click waits for initialization.
+- **Document size ceiling.** Per-item answer records move to `users/{uid}/items/chunk-N` (about 112 KiB each, capped at 24 chunks) written in one batch with the main document. Chunks unchanged since the previous save are skipped. If the main document would still exceed 900 KiB, the uploaded copy drops the oldest sittings first; the local record keeps everything.
+- **Lost second unfinished sitting.** `mergeProgress` kept only the newer `active` sitting. It now keeps the newest as the resume target and up to three others in `progress.paused`, shown on the dashboard as *Paused on another device* with Resume and Discard. Discarding the active sitting promotes a paused one instead of leaving an empty slot.
+- **Emulator support.** `firebase-sync.js` connects to Auth and Firestore emulators when the public config carries an `emulator` block, so local testing never touches the production project. `firebase.json` pins the ports.
+- **Rules.** `firestore.rules` gains the owner-only `users/{uid}/items/{chunk}` match.
+
+## Tests
+
+- `tests/emulator.py` (Playwright, Python) runs the three device flows above plus the size, legacy and rules checks against the emulators; it passed end to end.
+- `tests/smoke.py` still covers submit → history, reload → resume, misses retake and the corrected badge.
+
+## Known limitations
+
+- There is still no real Firebase project: the public config is blank, so the live project's rules deployment, Google popup and authorized domains remain untested. The emulator covers merge, sizes and rules only.
+- Cloud storage now needs the updated rules deployed before the chunk subcollection can be written by real accounts.
+
 # Questionaire 0.7.1-alpha — Codes, written answers and offline
 
 Released 20 November 2026.

@@ -17,7 +17,7 @@
      Constants
      -------------------------------------------------------------------------- */
 
-  const APP_VERSION = "0.7.1-alpha";
+  const APP_VERSION = "0.7.2-alpha";
   const STORAGE_KEY = "questionaire.progress.v1";
   const ACCOUNTS_KEY = "questionaire.accounts.v1";
   const THEME_KEY = "questionaire.theme";
@@ -277,6 +277,7 @@
      -------------------------------------------------------------------------- */
 
   const MAX_ATTEMPTS = 60;
+  const MAX_PAUSED = 3;
 
   function defaultProgress() {
     return {
@@ -293,6 +294,7 @@
       topicStats: {},
       attempts: [],
       active: null,
+      paused: [],
       frq: {}
     };
   }
@@ -354,6 +356,7 @@
       (Array.isArray(value.bookmarks) && value.bookmarks.length) ||
       (Array.isArray(value.mistakes) && value.mistakes.length) ||
       (Array.isArray(value.attempts) && value.attempts.length) ||
+      (Array.isArray(value.paused) && value.paused.length) ||
       (value.topicStats && Object.keys(value.topicStats).length) ||
       (value.frq && Object.keys(value.frq).length)
     );
@@ -442,12 +445,37 @@
     return merged;
   }
 
-  function pickActive(left, right) {
-    const a = left && typeof left === "object" ? left : null;
-    const b = right && typeof right === "object" ? right : null;
-    if (!a) return b;
-    if (!b) return a;
-    return Number(b.savedAt) > Number(a.savedAt) ? b : a;
+  function usableSitting(value) {
+    return Boolean(value && typeof value === "object" && Array.isArray(value.questions) && value.questions.length);
+  }
+
+  function sittingKey(sitting) {
+    return [sitting.subjectId || "", sitting.kind || "", sitting.key || ""].join("|");
+  }
+
+  /* Two devices can each hold a paper in flight. The newest one is the resume
+     target; the others stay resumable instead of being overwritten by the
+     merge. Keys are subject + paper, so the same paper on both devices keeps
+     only the more recent save. */
+  function mergeSittings(left, right) {
+    const pool = [];
+    [left, right].forEach(function (source) {
+      if (!source || typeof source !== "object") return;
+      if (usableSitting(source.active)) pool.push(source.active);
+      (Array.isArray(source.paused) ? source.paused : []).forEach(function (sitting) {
+        if (usableSitting(sitting)) pool.push(sitting);
+      });
+    });
+    pool.sort(function (a, b) { return Number(b.savedAt || 0) - Number(a.savedAt || 0); });
+    const seen = new Set();
+    const kept = [];
+    pool.forEach(function (sitting) {
+      const key = sittingKey(sitting);
+      if (seen.has(key)) return;
+      seen.add(key);
+      kept.push(sitting);
+    });
+    return { active: kept[0] || null, paused: kept.slice(1, 1 + MAX_PAUSED) };
   }
 
   function mergeProgress(local, remote) {
@@ -479,6 +507,7 @@
       .filter(isKnownQuestionId)
       .filter(function (id) { return !corrected[id]; });
     const lastStudyDate = [left.lastStudyDate, right.lastStudyDate].filter(Boolean).sort().pop() || null;
+    const sittings = mergeSittings(left, right);
 
     const vocab = {};
     [left.vocab || {}, right.vocab || {}].forEach(function (source) {
@@ -518,7 +547,8 @@
       corrected: corrected,
       topicStats: mergeTopicStats(left.topicStats, right.topicStats),
       attempts: mergeAttempts(left.attempts, right.attempts),
-      active: pickActive(left.active, right.active),
+      active: sittings.active,
+      paused: sittings.paused,
       frq: mergeFrq(left.frq, right.frq)
     };
   }
@@ -562,6 +592,10 @@
     if (!Array.isArray(merged.attempts)) merged.attempts = [];
     merged.attempts = mergeAttempts(merged.attempts, []);
     if (!merged.active || typeof merged.active !== "object") merged.active = null;
+    merged.paused = (Array.isArray(merged.paused) ? merged.paused : [])
+      .filter(usableSitting)
+      .filter(function (sitting) { return !merged.active || sittingKey(sitting) !== sittingKey(merged.active); })
+      .slice(0, MAX_PAUSED);
     if (!merged.frq || typeof merged.frq !== "object") merged.frq = {};
     if (!merged.vocab || typeof merged.vocab !== "object") merged.vocab = {};
     merged.xp = Number(merged.xp) || 0;
@@ -1890,7 +1924,7 @@
       '<div class="home-section-head"><div><span class="eyebrow">Your record, measured</span><h2>Papers &amp; weak spots</h2><p>Every sitting is saved with its answers and topic report. Retake one and the comparison is waiting for you.</p></div>' +
       '<a class="text-link" href="#/review">Review queue<i data-lucide="arrow-right"></i></a></div>' +
       '<div class="work-grid">' + recentAttemptsHTML() + masteryPanelHTML(4) + '</div>' +
-      (progress.active ? activeResumeHTML() : "") +
+      (progress.active || (progress.paused && progress.paused.length) ? activeResumeHTML() + pausedResumeHTML() : "") +
       '</section>' +
       '</div>';
   }
@@ -2701,8 +2735,11 @@
   }
 
   function resumeActiveAttempt() {
-    const active = progress.active;
-    if (!active) return;
+    resumeSitting(progress.active);
+  }
+
+  function resumeSitting(active) {
+    if (!usableSitting(active)) return;
     const entry = SUBJECT_MAP.get(active.subjectId);
     const questions = entry ? questionObjectsFor(active.questions, active.subjectId) : [];
     if (!entry || !questions.length) {
@@ -2763,6 +2800,53 @@
     }
     startExamTimer();
     toast("Paper resumed — the clock is still running.");
+  }
+
+  function resumePausedSitting(index) {
+    const paused = Array.isArray(progress.paused) ? progress.paused : [];
+    const sitting = paused[index];
+    if (!usableSitting(sitting)) {
+      progress.paused = paused.filter(function (item, position) { return position !== index; });
+      saveProgress();
+      paint();
+      return;
+    }
+    const rest = paused.filter(function (item, position) { return position !== index; });
+    if (usableSitting(progress.active)) rest.unshift(progress.active);
+    progress.active = sitting;
+    progress.paused = rest.slice(0, MAX_PAUSED);
+    saveProgress();
+    resumeSitting(sitting);
+  }
+
+  function discardPausedSitting(index) {
+    const paused = Array.isArray(progress.paused) ? progress.paused : [];
+    if (!paused[index]) return;
+    progress.paused = paused.filter(function (item, position) { return position !== index; });
+    saveProgress();
+    paint();
+    toast("Paused sitting discarded.", "is-warn");
+  }
+
+  function pausedResumeHTML() {
+    const paused = Array.isArray(progress.paused) ? progress.paused : [];
+    if (!paused.length) return "";
+    return paused.map(function (sitting, index) {
+      const entry = SUBJECT_MAP.get(sitting.subjectId);
+      if (!entry) return "";
+      const total = (sitting.questions || []).length;
+      const answered = Object.keys(decodeAnswers(sitting)).length;
+      return (
+        '<div class="resume-strip card is-paused">' +
+        '<div class="resume-copy"><span class="resume-kicker">Paused on another device</span>' +
+        "<strong>" + esc(entry.subject.title) + " · " + esc(sitting.label) + "</strong>" +
+        '<small>' + answered + " of " + total + " answered · saved " + esc(attemptWhen(new Date(Number(sitting.savedAt) || Date.now()).toISOString())) + "</small></div>" +
+        '<div class="resume-actions">' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-action="resume-paused" data-index="' + index + '"><i data-lucide="play"></i>Resume</button>' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-action="discard-paused" data-index="' + index + '"><i data-lucide="x"></i>Discard</button>' +
+        "</div></div>"
+      );
+    }).join("");
   }
 
   function activeResumeHTML() {
@@ -4479,10 +4563,23 @@
 
     if (action === "discard-attempt") {
       if (!window.confirm("Discard the unfinished sitting? It will not be saved.")) return;
-      progress.active = null;
+      const next = (Array.isArray(progress.paused) ? progress.paused : [])[0] || null;
+      progress.active = next;
+      progress.paused = next ? progress.paused.slice(1) : [];
       saveProgress();
       paint();
       toast("Unfinished sitting discarded.", "is-warn");
+      return;
+    }
+
+    if (action === "resume-paused") {
+      resumePausedSitting(Number(trigger.getAttribute("data-index")) || 0);
+      return;
+    }
+
+    if (action === "discard-paused") {
+      if (!window.confirm("Discard that paused sitting? It will not be saved.")) return;
+      discardPausedSitting(Number(trigger.getAttribute("data-index")) || 0);
       return;
     }
 

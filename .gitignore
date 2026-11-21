@@ -1,4 +1,6 @@
 # OS and editor junk
+__pycache__/
+*-debug.log
 Thumbs.db
 desktop.ini
 .DS_Store
@@ -6,3 +8,7 @@ desktop.ini
 
 # Freebuff local project markers
 .freebuff/
+
+# Portable runtimes and local emulator state (installed on demand)
+.tools/
+.firebase/

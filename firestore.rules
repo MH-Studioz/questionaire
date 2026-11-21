@@ -5,6 +5,12 @@ service cloud.firestore {
     // One private progress record per authenticated email/password or Google user.
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // Per-item answer records, split into chunks so the profile never hits
+      // the 1 MiB document limit. Same owner-only rule.
+      match /items/{chunk} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
     }
   }
 }
