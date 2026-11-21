@@ -1,12 +1,13 @@
-"""Firestore emulator check for the cloud progress document.
+"""Firestore emulator checks for the cloud progress document.
 
 Runs the real app in Chromium against the Firebase Auth + Firestore emulators
-with the production profile shape, and measures:
+with the production profile shape, and checks:
 
   * merge of two devices signed into one account
   * an unfinished sitting saved on each device
   * stored document sizes against Firestore's 1 MiB per-document limit
-  * a legacy single-document profile still loading
+  * a legacy inline-only profile and a mixed 0.7.1/0.7.2 profile
+  * the client-side budget for an oversized main document
   * rules denying another account's documents
 
 Requires the emulators on 127.0.0.1:9099 / :8080 and the app served on
@@ -21,6 +22,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
 
 from playwright.sync_api import sync_playwright
 
@@ -30,8 +32,15 @@ FIRESTORE = os.environ.get("FIRESTORE_EMULATOR", "http://127.0.0.1:8080")
 AUTH = os.environ.get("AUTH_EMULATOR", "http://127.0.0.1:9099")
 API_KEY = "demo-questionaire"
 LIMIT = 1024 * 1024  # Firestore per-document limit, 1,048,576 bytes
-
 PASSWORD = "questionaire-dev"
+
+VIEWPORT = {"width": 1280, "height": 900}
+BOOT = "window.QuestionaireCloud && window.QuestionaireCloud.configured"
+
+# Later save on device B, so the merge has a clear winner.
+SAVED_A = 1763000000000
+SAVED_B = 1763100000000
+
 RUN = str(int(time.time()))[-6:]
 EMAIL_A = "device-a-" + RUN + "@example.test"
 EMAIL_C = "size-" + RUN + "@example.test"
@@ -47,6 +56,18 @@ def fail(message):
 
 def ok(message):
     print("ok: " + message)
+
+
+def check(condition, message):
+    if condition:
+        ok(message)
+    else:
+        fail(message)
+
+
+# ---------------------------------------------------------------------------
+# Emulator REST helpers
+# ---------------------------------------------------------------------------
 
 
 def request_json(url, method="GET", body=None, token="owner"):
@@ -74,14 +95,26 @@ def firestore_doc(uid, chunk=None):
     return payload if status == 200 else None
 
 
-def wait_for_doc(uid, predicate, timeout=30):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        doc = firestore_doc(uid)
-        if doc and predicate(doc):
-            return doc
-        time.sleep(0.4)
-    return firestore_doc(uid)
+def as_map(fields):
+    return {"mapValue": {"fields": fields}}
+
+
+def as_int(value):
+    return {"integerValue": str(value)}
+
+
+def as_str(value):
+    return {"stringValue": value}
+
+
+def patch_fields(uid, fields, mask, token="owner"):
+    """PATCH selected field paths on a user document, as the emulator admin."""
+    return request_json(
+        doc_url(uid) + "?updateMask.fieldPaths=" + mask,
+        method="PATCH",
+        body={"fields": fields},
+        token=token,
+    )
 
 
 def decode(value):
@@ -113,8 +146,36 @@ def progress_of(doc):
     return decode(fields_of(doc).get("progress", {}))
 
 
+def progress_snapshot(uid):
+    return progress_of(firestore_doc(uid) or {})
+
+
+def item_count(uid):
+    return int(progress_snapshot(uid).get("itemCount") or 0)
+
+
+def has_progress(doc):
+    return bool(fields_of(doc).get("progress"))
+
+
 def document_bytes(doc):
     return len(json.dumps(doc, separators=(",", ":")).encode("utf-8"))
+
+
+def read_answered(uid, doc=None):
+    """Reassemble the per-item records the app splits into chunk documents."""
+    progress = progress_of(doc) if doc else progress_snapshot(uid)
+    count = int(progress.get("itemChunks") or 0)
+    if not count:
+        return progress.get("answered", {})
+    merged = {}
+    for index in range(count):
+        chunk = firestore_doc(uid, index)
+        if not chunk:
+            continue
+        body = fields_of(chunk).get("body", {}).get("stringValue", "")
+        merged.update(json.loads(body or "{}"))
+    return merged
 
 
 def id_token(email, password):
@@ -124,9 +185,48 @@ def id_token(email, password):
         body={"email": email, "password": password, "returnSecureToken": True},
         token="",
     )
-    if status != 200:
-        return None
-    return payload.get("idToken")
+    return payload.get("idToken") if status == 200 else None
+
+
+# ---------------------------------------------------------------------------
+# Waiting
+# ---------------------------------------------------------------------------
+
+
+def wait_until(probe, timeout=40, interval=0.25):
+    """Poll until probe returns a truthy value; never a fixed sleep."""
+    deadline = time.time() + timeout
+    value = probe()
+    while not value and time.time() < deadline:
+        time.sleep(interval)
+        value = probe()
+    return value
+
+
+def wait_for_doc(uid, predicate, timeout=40):
+    def probe():
+        doc = firestore_doc(uid)
+        return doc if doc and predicate(doc) else None
+
+    return wait_until(probe, timeout=timeout)
+
+
+def chunk_total(uid):
+    return int(progress_snapshot(uid).get("itemChunks") or 0)
+
+
+def wait_for_chunks(uid, minimum=1, timeout=40):
+    """Wait until the stored profile has at least `minimum` chunk documents."""
+    def probe():
+        total = chunk_total(uid)
+        return total if total >= minimum else None
+
+    return wait_until(probe, timeout=timeout)
+
+
+# ---------------------------------------------------------------------------
+# Browser fixtures
+# ---------------------------------------------------------------------------
 
 
 def cloud_config():
@@ -139,21 +239,52 @@ def cloud_config():
     }
 
 
-def open_app(browser):
-    context = browser.new_context(service_workers="block", viewport={"width": 1280, "height": 900})
+def serve_config(route):
+    route.fulfill(
+        status=200,
+        content_type="application/javascript",
+        body="window.FIREBASE_CONFIG = " + json.dumps(cloud_config()) + ";",
+    )
+
+
+def wait_for_boot(page):
+    page.wait_for_function(BOOT, timeout=20000)
+
+
+@contextmanager
+def device(browser, profile=None, email=None, display_name=None):
+    """A fresh browser profile pointed at the emulators.
+
+    With a profile it is seeded as legacy guest progress and the account is
+    created (sign-up) or signed into; yields (page, uid), uid None otherwise.
+    """
+    context = browser.new_context(service_workers="block", viewport=VIEWPORT)
     page = context.new_page()
-
-    def serve_config(route):
-        route.fulfill(
-            status=200,
-            content_type="application/javascript",
-            body="window.FIREBASE_CONFIG = " + json.dumps(cloud_config()) + ";",
-        )
-
     page.route("**/firebase-config.js*", serve_config)
     page.goto(BASE_URL + "/index.html", wait_until="load")
-    page.wait_for_function("window.QuestionaireCloud && window.QuestionaireCloud.configured", timeout=20000)
-    return context, page
+    wait_for_boot(page)
+    uid = None
+    try:
+        if profile is not None:
+            page.evaluate(
+                "profile => localStorage.setItem('questionaire.progress.v1', JSON.stringify(profile))",
+                profile,
+            )
+            page.reload(wait_until="load")
+            wait_for_boot(page)
+            uid = sign_in(page, email, display_name)
+        yield page, uid
+    finally:
+        context.close()
+
+
+def sign_in(page, email, display_name=None):
+    script = "([email, password, name]) => window.QuestionaireCloud." + (
+        "signUpEmail(name, email, password)" if display_name else "signInEmail(email, password)"
+    )
+    page.evaluate(script, [email, PASSWORD, display_name])
+    page.wait_for_function("window.QuestionaireCloud.state.status === 'signed-in'", timeout=25000)
+    return page.evaluate("window.QuestionaireCloud.state.user.uid")
 
 
 def question_ids(page):
@@ -173,61 +304,76 @@ def question_ids(page):
     )
 
 
-def build_profile(ids, tag, answered_count, attempt_count, saved_at, per_attempt=25):
-    """A profile in the exact shape app.js persists."""
-    answered = {}
-    offset = 0 if tag == "A" else 7000
-    for index in range(answered_count):
-        question_id = ids[(offset + index) % len(ids)]
-        answered[question_id] = {
-            "attempts": 1 + (index % 3),
-            "correct": 1 + (index % 2),
-            "firstCorrect": "2026-11-0%dT10:%02d:00.000Z" % (1 + (index % 9), index % 60),
-            "last": "2026-11-1%dT10:%02d:00.000Z" % (index % 9, index % 60),
-        }
+# ---------------------------------------------------------------------------
+# Profile fixture
+# ---------------------------------------------------------------------------
 
-    attempts = []
-    for index in range(attempt_count):
-        questions = [ids[(index * per_attempt + step) % len(ids)] for step in range(per_attempt)]
-        answers = "".join("x" if step % 7 == 0 else str(step % 4) for step in range(per_attempt))
-        attempts.append(
-            {
-                "id": "%s-%03d" % (tag.lower(), index),
-                "kind": "mock" if index % 5 == 0 else "practice",
-                "subjectId": "sat" if index % 2 == 0 else "act",
-                "subjectTitle": "SAT" if index % 2 == 0 else "ACT",
-                "paperKey": "P%d" % (index % 4),
-                "label": "Practice Set P%d" % (index % 4),
-                "startedAt": 1763000000000 - index * 86400000,
-                "finishedAt": "2026-11-%02dT0%d:15:00.000Z" % (1 + (index % 18), index % 9),
-                "seconds": 640 + index,
-                "score": 12 + (index % 9),
-                "total": per_attempt,
-                "delta": 1 if index % 3 else None,
-                "deltaBase": "%s-%03d" % (tag.lower(), index + 1) if index < attempt_count - 1 else None,
-                "flags": questions[:2],
-                "questions": questions,
-                "answers": answers,
-                "topics": {"Algebra": {"correct": 4, "total": 6}, "Reading": {"correct": 3, "total": 5}},
-            }
-        )
 
-    sitting_questions = ids[:25]
-    active = {
+def encoded_answers(count, unset_every=7):
+    return "".join("x" if step % unset_every == 0 else str(step % 4) for step in range(count))
+
+
+def build_attempt(ids, index, tag, per_attempt):
+    questions = [ids[(index * per_attempt + step) % len(ids)] for step in range(per_attempt)]
+    return {
+        "id": "%s-%03d" % (tag.lower(), index),
+        "kind": "mock" if index % 5 == 0 else "practice",
+        "subjectId": "sat" if index % 2 == 0 else "act",
+        "subjectTitle": "SAT" if index % 2 == 0 else "ACT",
+        "paperKey": "P%d" % (index % 4),
+        "label": "Practice Set P%d" % (index % 4),
+        "startedAt": 1763000000000 - index * 86400000,
+        "finishedAt": "2026-11-%02dT0%d:15:00.000Z" % (1 + (index % 18), index % 9),
+        "seconds": 640 + index,
+        "score": 12 + (index % 9),
+        "total": per_attempt,
+        "delta": 1 if index % 3 else None,
+        "flags": questions[:2],
+        "questions": questions,
+        "answers": encoded_answers(per_attempt),
+        "topics": {"Algebra": {"correct": 4, "total": 6}, "Reading": {"correct": 3, "total": 5}},
+    }
+
+
+def build_sitting(ids, tag, saved_at):
+    """An unfinished paper in the shape saveActiveAttempt writes."""
+    questions = ids[:25]
+    return {
         "savedAt": saved_at,
         "kind": "mock",
         "subjectId": "biology" if tag == "A" else "chemistry",
         "subjectTitle": "Biology" if tag == "A" else "Chemistry",
         "key": "S%d" % saved_at,
         "label": "Device %s unfinished paper" % tag,
-        "questions": sitting_questions,
-        "answers": "".join("x" if step % 3 else str(step % 4) for step in range(len(sitting_questions))),
-        "flags": sitting_questions[:2],
+        "questions": questions,
+        "answers": encoded_answers(len(questions), unset_every=3),
+        "flags": questions[:2],
         "index": 4,
         "startedAt": saved_at - 600000,
         "endsAt": saved_at + 1800000,
         "totalSeconds": 1500,
     }
+
+
+def build_profile(ids, tag, answered_count, attempt_count, saved_at, per_attempt=25):
+    """A profile in the exact shape app.js persists.
+
+    `tag` only separates the two devices' fixtures: it offsets the questions
+    they answered, names their sitting and pads the mistake list differently.
+    """
+    offset = 0 if tag == "A" else 7000
+    answered = {}
+    for index in range(answered_count):
+        answered[ids[(offset + index) % len(ids)]] = {
+            "attempts": 1 + (index % 3),
+            "correct": 1 + (index % 2),
+            "firstCorrect": "2026-11-0%dT10:%02d:00.000Z" % (1 + (index % 9), index % 60),
+            "last": "2026-11-1%dT10:%02d:00.000Z" % (index % 9, index % 60),
+        }
+
+    attempts = [build_attempt(ids, index, tag, per_attempt) for index in range(attempt_count)]
+    for index, attempt in enumerate(attempts):
+        attempt["deltaBase"] = attempts[index + 1]["id"] if index < len(attempts) - 1 else None
 
     vocab = {}
     for index in range(120):
@@ -238,15 +384,18 @@ def build_profile(ids, tag, answered_count, attempt_count, saved_at, per_attempt
             "last": "2026-11-10T09:00:00.000Z",
         }
 
-    topic_stats = {}
-    for subject in ("sat", "act", "bio", "chem", "calc"):
-        topic_stats[subject] = {}
-        for tag_name in ("Algebra", "Reading", "Geometry", "Data", "Writing"):
-            topic_stats[subject][tag_name] = {"correct": 12, "total": 20}
+    topic_stats = {
+        subject: {
+            tag_name: {"correct": 12, "total": 20}
+            for tag_name in ("Algebra", "Reading", "Geometry", "Data", "Writing")
+        }
+        for subject in ("sat", "act", "bio", "chem", "calc")
+    }
 
-    corrected = {}
-    for index in range(200):
-        corrected[ids[(index * 3) % len(ids)]] = "2026-11-0%dT11:00:00.000Z" % (1 + index % 9)
+    corrected = {
+        ids[(index * 3) % len(ids)]: "2026-11-0%dT11:00:00.000Z" % (1 + index % 9)
+        for index in range(200)
+    }
 
     return {
         "version": 1,
@@ -261,7 +410,7 @@ def build_profile(ids, tag, answered_count, attempt_count, saved_at, per_attempt
         "corrected": corrected,
         "topicStats": topic_stats,
         "attempts": attempts,
-        "active": active,
+        "active": build_sitting(ids, tag, saved_at),
         "paused": [],
         "frq": {
             "calc": {
@@ -277,304 +426,259 @@ def build_profile(ids, tag, answered_count, attempt_count, saved_at, per_attempt
     }
 
 
-def sign_in(page, email, password, display_name=None):
-    script = "([email, password, name]) => window.QuestionaireCloud." + (
-        "signUpEmail(name, email, password)" if display_name else "signInEmail(email, password)"
-    )
-    page.evaluate(script, [email, password, display_name])
-    page.wait_for_function("window.QuestionaireCloud.state.status === 'signed-in'", timeout=25000)
-    return page.evaluate("window.QuestionaireCloud.state.user.uid")
+# ---------------------------------------------------------------------------
+# Checks
+# ---------------------------------------------------------------------------
 
 
-def seed_local(page, profile):
-    page.evaluate(
-        "profile => localStorage.setItem('questionaire.progress.v1', JSON.stringify(profile))", profile
+def check_two_device_merge(browser, ids):
+    """Same account on two devices: answers, sittings and both papers survive."""
+    profile_a = build_profile(ids, "A", answered_count=900, attempt_count=40, saved_at=SAVED_A)
+    with device(browser, profile_a, EMAIL_A, "Device A") as (page_a, uid):
+        check(bool(wait_for_doc(uid, has_progress)), "device A saved its profile")
+
+        profile_b = build_profile(ids, "B", answered_count=600, attempt_count=20, saved_at=SAVED_B)
+        with device(browser, profile_b, EMAIL_A) as (page_b, uid_b):
+            check(uid_b == uid, "device B signs into the same account")
+
+            expr = lambda value: int(progress_of(value).get("itemCount") or 0) >= 1480
+            doc = wait_for_doc(uid, expr, timeout=60)
+            merged = progress_of(doc)
+            answered = read_answered(uid, doc)
+            expected = len(profile_a["answered"]) + len(profile_b["answered"])
+            print("merged answered ids: %d" % len(answered))
+            print("merged attempts: %d" % len(merged.get("attempts", [])))
+            check(
+                len(answered) >= expected * 0.98,
+                "answered records from both devices merged (%d of %d)" % (len(answered), expected),
+            )
+            check(
+                len(merged.get("attempts", [])) == 60,
+                "attempt history holds 60 sittings from both devices (%d rows)"
+                % len(merged.get("attempts", [])),
+            )
+
+            active = merged.get("active") or {}
+            paused_labels = [item.get("label") for item in merged.get("paused") or []]
+            print("paused sittings: %s" % paused_labels)
+            check(
+                active.get("savedAt") == SAVED_B,
+                "newer unfinished sitting is the resume target (device B)",
+            )
+            check(
+                "Device A unfinished paper" in paused_labels,
+                "device A's sitting is kept and resumable (paused list)",
+            )
+
+            stored = page_b.evaluate(
+                "key => localStorage.getItem(key)", "questionaire.progress.v1.cloud." + uid
+            )
+            if stored:
+                size = len(stored.encode("utf-8"))
+                print("merged payload: %d bytes (%.1f KiB)" % (size, size / 1024))
+            else:
+                fail("device B has no cached cloud payload")
+
+            page_b.goto(BASE_URL + "/index.html#/dashboard", wait_until="load")
+            page_b.wait_for_selector(".attempt-history", timeout=20000)
+            check(
+                page_b.locator(".resume-strip.is-paused").count() >= 1,
+                "dashboard shows the paused sitting from the other device",
+            )
+
+            page_b.locator('.resume-strip.is-paused [data-action="resume-paused"]').first.click()
+            try:
+                page_b.wait_for_selector(".paper-question, .exam-question", timeout=20000)
+                target = page_b.evaluate("location.hash")
+            except Exception:
+                target = ""
+            check("/practice" in target, "paused sitting resumes into the runner (%s)" % target)
+            return uid
+
+
+def check_sizes(browser, ids):
+    """Full-catalogue profile: chunking, document sizes and the size ceiling."""
+    full = build_profile(ids, "A", answered_count=len(ids), attempt_count=60, saved_at=SAVED_A)
+    with device(browser, full, EMAIL_C, "Size probe") as (page, uid):
+        doc = wait_for_doc(uid, lambda value: int(progress_of(value).get("itemCount") or 0) > 0, timeout=90)
+        if not doc:
+            fail("full-catalogue profile was never written")
+            return
+
+        meta = progress_of(doc)
+        chunks = int(meta.get("itemChunks") or 0)
+        items = int(meta.get("itemCount") or 0)
+        main_size = document_bytes(doc)
+        chunk_sizes = [document_bytes(firestore_doc(uid, index)) for index in range(chunks)]
+        largest = max(chunk_sizes) if chunk_sizes else 0
+        print(
+            "full catalogue: %d answered -> %d chunk docs; main %d B (%.1f KiB), "
+            "largest chunk %d B (%.1f KiB), largest document headroom %.1f KiB"
+            % (
+                items,
+                chunks,
+                main_size,
+                main_size / 1024,
+                largest,
+                largest / 1024,
+                (LIMIT - max(main_size, largest)) / 1024,
+            )
+        )
+        check(items == len(ids), "every answered question is stored (%d of %d)" % (items, len(ids)))
+        check(
+            max(main_size, largest) < LIMIT,
+            "largest written document leaves %.1f KiB of headroom"
+            % ((LIMIT - max(main_size, largest)) / 1024),
+        )
+
+        # The emulator only rejects a single oversized value, so prove the
+        # ceiling is real before trusting the client-side budget.
+        status, payload = patch_fields(
+            "oversize-probe", {"blob": as_str("x" * (LIMIT + 9000))}, "blob"
+        )
+        check(
+            status == 400,
+            "emulator rejects an oversized value (%s)"
+            % payload.get("error", {}).get("status"),
+        )
+
+        check_legacy_profile(page, uid, ids)
+        check_mixed_profile(page, uid, ids)
+
+
+def check_legacy_profile(page, uid, ids):
+    """A 0.7.1-only profile (inline answers, no chunks) still loads."""
+    legacy_ids = ids[-2:]
+    legacy_answers = {
+        question_id: as_map({"attempts": as_int(3), "correct": as_int(2)})
+        for question_id in legacy_ids
+    }
+    status, _ = patch_fields(
+        uid,
+        {"progress": as_map({
+            "version": as_int(1),
+            "xp": as_int(777),
+            "answered": as_map(legacy_answers),
+        })},
+        "progress",
     )
+    if status != 200:
+        fail("could not write a legacy single-document profile (%d)" % status)
+        return
+
     page.reload(wait_until="load")
-    page.wait_for_function("window.QuestionaireCloud && window.QuestionaireCloud.configured", timeout=20000)
+    wait_for_boot(page)
+    wait_for_chunks(uid, minimum=2)
+    after = progress_snapshot(uid)
+    restored = read_answered(uid)
+    check(
+        int(after.get("itemChunks") or 0) >= 2 and legacy_ids[0] in restored,
+        "legacy inline profile loads and is re-chunked (%s chunks)" % after.get("itemChunks"),
+    )
 
 
-def read_answered(uid, doc=None):
-    """Reassemble the per-item records the app splits into chunk documents."""
-    progress = progress_of(doc or firestore_doc(uid))
-    count = int(progress.get("itemChunks") or 0)
-    if not count:
-        return progress.get("answered", {})
-    merged = {}
-    for index in range(count):
-        chunk = firestore_doc(uid, index)
-        if not chunk:
-            continue
-        body = fields_of(chunk).get("body", {}).get("stringValue", "")
-        merged.update(json.loads(body or "{}"))
-    return merged
+def check_mixed_profile(page, uid, ids):
+    """A 0.7.1 device writes inline records into a document that already has chunks."""
+    mixed_id = ids[-3]
+    status, _ = patch_fields(
+        uid,
+        {"progress": as_map({
+            "answered": as_map({
+                mixed_id: as_map({
+                    "attempts": as_int(50),
+                    "correct": as_int(40),
+                    "firstCorrect": as_str("2026-01-02T03:04:05.000Z"),
+                })
+            })
+        })},
+        "progress.answered",
+    )
+    if status != 200:
+        fail("could not simulate an inline write from a 0.7.1 client (%d)" % status)
+        return
+
+    page.reload(wait_until="load")
+    wait_for_boot(page)
+
+    def folded():
+        progress = progress_snapshot(uid)
+        if "answered" in progress:
+            return None
+        return progress if int(progress.get("itemCount") or 0) >= len(ids) else None
+
+    stored = wait_until(folded, timeout=45)
+    record = read_answered(uid).get(mixed_id, {})
+    check(
+        int(record.get("attempts") or 0) >= 50,
+        "inline 0.7.1 answer record survives the load (attempts=%r)" % record.get("attempts"),
+    )
+    check(bool(stored), "inline answer records are folded into the chunks and cleared")
 
 
-def stored_payload(page, uid):
-    return page.evaluate("key => localStorage.getItem(key)", "questionaire.progress.v1.cloud." + uid)
+def check_oversize_guard(browser, ids):
+    """An oversized profile is trimmed for upload but kept intact locally."""
+    profile = build_profile(ids, "A", answered_count=50, attempt_count=60, saved_at=SAVED_A, per_attempt=1200)
+    payload = len(json.dumps(profile).encode("utf-8"))
+    print("guard probe local payload: %d bytes (%.1f KiB)" % (payload, payload / 1024))
+
+    with device(browser, profile, EMAIL_D, "Heavy profile") as (page, uid):
+        doc = wait_for_doc(uid, has_progress, timeout=90)
+        if not doc:
+            fail("oversized profile never reached Firestore")
+            return
+
+        core = progress_of(doc)
+        main_size = document_bytes(doc)
+        print(
+            "guarded main document: %d bytes (%.1f KiB), syncTrimmed=%r"
+            % (main_size, main_size / 1024, core.get("syncTrimmed"))
+        )
+        check(main_size < LIMIT, "oversized profile stays under the 1 MiB limit")
+        check(core.get("syncTrimmed") is True, "oversized main document is trimmed before upload")
+
+        local = json.loads(
+            page.evaluate("key => localStorage.getItem(key)", "questionaire.progress.v1.cloud." + uid)
+            or "{}"
+        )
+        check(
+            len(local.get("attempts", [])) == 60,
+            "local history keeps all 60 sittings after cloud trimming (%d)"
+            % len(local.get("attempts", [])),
+        )
+
+
+def check_rules(uid):
+    """Owner-only rules: foreign writes refused, own chunks readable."""
+    token = id_token(EMAIL_A, PASSWORD)
+    if not token:
+        fail("could not mint an ID token for the rules check")
+        return
+
+    status, _ = patch_fields("someone-else", {"progress": as_map({})}, "progress", token=token)
+    check(status in (401, 403), "rules deny writing another account's document (%d)" % status)
+
+    status, _ = request_json(doc_url(uid, 0), token=token)
+    check(status == 200, "rules allow reading your own chunk documents (%d)" % status)
 
 
 def main():
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
-
-        # ------------------------------------------------------------- devices A
-        context_a, page_a = open_app(browser)
-        ids = question_ids(page_a)
-        print("catalogue questions: %d" % len(ids))
-        if len(ids) < 500:
-            fail("catalogue did not load, only %d question ids" % len(ids))
-
-        profile_a = build_profile(ids, "A", 900, 40, 1763000000000)
-        seed_local(page_a, profile_a)
-        uid = sign_in(page_a, EMAIL_A, PASSWORD, display_name="Device A")
-        print("device A uid: %s" % uid)
-        first = wait_for_doc(uid, lambda doc: bool(fields_of(doc).get("progress")))
-        if not first:
-            fail("device A never wrote a progress document")
-        else:
-            ok("device A saved its profile")
-
-        # ------------------------------------------------------------- device B
-        context_b, page_b = open_app(browser)
-        profile_b = build_profile(ids, "B", 600, 20, 1763100000000)
-        seed_local(page_b, profile_b)
-        uid_b = sign_in(page_b, EMAIL_A, PASSWORD)
-        if uid_b != uid:
-            fail("device B signed into a different account")
-        doc = wait_for_doc(
-            uid, lambda value: int(progress_of(value).get("itemCount") or 0) >= 1480, timeout=40
-        )
-        merged = progress_of(doc)
-        answered = read_answered(uid, doc)
-        print("merged answered ids: %d" % len(answered))
-        print("merged attempts: %d" % len(merged.get("attempts", [])))
-
-        expected = len(profile_a["answered"]) + len(profile_b["answered"])
-        if len(answered) < expected * 0.98:
-            fail("answered records did not merge: %d stored, %d expected" % (len(answered), expected))
-        else:
-            ok("answered records from both devices merged (%d of %d)" % (len(answered), expected))
-
-        if len(merged.get("attempts", [])) != 60:
-            fail("attempt history did not merge (%d rows, expected 60)" % len(merged.get("attempts", [])))
-        else:
-            ok("attempt history holds 60 sittings from both devices")
-
-        active = merged.get("active") or {}
-        paused = merged.get("paused") or []
-        if active.get("savedAt") != 1763100000000:
-            fail("the newer unfinished sitting is not the resume target")
-        else:
-            ok("newer unfinished sitting is the resume target (device B)")
-        paused_labels = [item.get("label") for item in paused]
-        print("paused sittings: %s" % paused_labels)
-        if "Device A unfinished paper" not in paused_labels:
-            fail("device A's unfinished sitting was dropped by the merge")
-        else:
-            ok("device A's sitting is kept and resumable (paused list)")
-
-        stored = stored_payload(page_b, uid)
-        if not stored:
-            fail("device B has no cached cloud payload")
-        else:
-            size = len(stored.encode("utf-8"))
-            print("merged payload: %d bytes (%.1f KiB)" % (size, size / 1024))
-
-        page_b.goto(BASE_URL + "/index.html#/dashboard", wait_until="load")
-        page_b.wait_for_selector(".attempt-history", timeout=20000)
-        if page_b.locator(".resume-strip.is-paused").count() >= 1:
-            ok("dashboard shows the paused sitting from the other device")
-        else:
-            fail("dashboard does not show the paused sitting")
-
-        # Resume the paused paper: it becomes the active sitting and opens.
-        page_b.locator('.resume-strip.is-paused [data-action="resume-paused"]').first.click()
         try:
-            page_b.wait_for_selector(".paper-question, .exam-question", timeout=20000)
-            target = page_b.evaluate("location.hash")
-            if "/practice" in target:
-                ok("paused sitting resumes into the runner (%s)" % target)
-            else:
-                fail("paused sitting resumed to an unexpected route (%s)" % target)
-        except Exception:
-            fail("paused sitting did not resume into the runner")
+            with device(browser) as (page, _):
+                ids = question_ids(page)
+            print("catalogue questions: %d" % len(ids))
+            check(len(ids) >= 500, "catalogue loaded (%d question ids)" % len(ids))
 
-        # ------------------------------------------------- full-catalogue profile
-        context_c, page_c = open_app(browser)
-        heavy = build_profile(ids, "A", len(ids), 60, 1763000000000)
-        seed_local(page_c, heavy)
-        uid_c = sign_in(page_c, EMAIL_C, PASSWORD, display_name="Size probe")
-        doc_c = wait_for_doc(uid_c, lambda value: progress_of(value).get("itemCount", 0) > 0, timeout=60)
-        if not doc_c:
-            fail("full-catalogue profile was never written")
-            chunk_count = 0
-        else:
-            meta = progress_of(doc_c)
-            chunk_count = int(meta.get("itemChunks") or 0)
-            item_count = int(meta.get("itemCount") or 0)
-            main_size = document_bytes(doc_c)
-            chunk_sizes = [document_bytes(firestore_doc(uid_c, index)) for index in range(chunk_count)]
-            largest = max(chunk_sizes) if chunk_sizes else 0
-            print(
-                "full catalogue: %d answered -> %d chunk docs; main %d B (%.1f KiB), "
-                "largest chunk %d B (%.1f KiB), largest document headroom %.1f KiB"
-                % (
-                    item_count,
-                    chunk_count,
-                    main_size,
-                    main_size / 1024,
-                    largest,
-                    largest / 1024,
-                    (LIMIT - max(main_size, largest)) / 1024,
-                )
-            )
-            if item_count != len(ids):
-                fail("per-item records were lost: %d stored of %d" % (item_count, len(ids)))
+            uid = check_two_device_merge(browser, ids)
+            check_sizes(browser, ids)
+            check_oversize_guard(browser, ids)
+            if uid:
+                check_rules(uid)
             else:
-                ok("every answered question is stored (%d records over %d chunks)" % (item_count, chunk_count))
-            if max(main_size, largest) >= LIMIT:
-                fail("a written document is over the 1 MiB limit")
-            else:
-                ok("largest written document leaves %.1f KiB of headroom" % ((LIMIT - max(main_size, largest)) / 1024))
-
-            # The emulator only rejects a single oversized value, so prove the
-            # ceiling is real before trusting the client-side budget below.
-            status, payload = request_json(
-                doc_url("oversize-probe") + "?updateMask.fieldPaths=blob",
-                method="PATCH",
-                body={"fields": {"blob": {"stringValue": "x" * (LIMIT + 9000)}}},
-            )
-            if status == 400:
-                ok("emulator rejects an oversized value (%s)" % payload.get("error", {}).get("status"))
-            else:
-                fail("emulator accepted an oversized value (%d)" % status)
-
-            # ------------------------------------------------ legacy inline profile
-            legacy_ids = ids[-2:]
-            legacy_answers = {}
-            for legacy_id in legacy_ids:
-                legacy_answers[legacy_id] = {
-                    "mapValue": {"fields": {
-                        "attempts": {"integerValue": "3"},
-                        "correct": {"integerValue": "2"},
-                    }}
-                }
-            status, _ = request_json(
-                doc_url(uid_c) + "?updateMask.fieldPaths=progress",
-                method="PATCH",
-                body={"fields": {"progress": {"mapValue": {"fields": {
-                    "version": {"integerValue": "1"},
-                    "xp": {"integerValue": "777"},
-                    "answered": {"mapValue": {"fields": legacy_answers}},
-                }}}}},
-            )
-            if status != 200:
-                fail("could not write a legacy single-document profile (%d)" % status)
-            else:
-                page_c.reload(wait_until="load")
-                page_c.wait_for_function(
-                    "window.QuestionaireCloud && window.QuestionaireCloud.configured", timeout=20000
-                )
-                page_c.wait_for_timeout(4000)
-                after = progress_of(firestore_doc(uid_c) or {})
-                restored = read_answered(uid_c)
-                if int(after.get("itemChunks") or 0) < 2 or legacy_ids[0] not in restored:
-                    fail("legacy inline profile was not merged and re-chunked")
-                else:
-                    ok("legacy inline profile loads and is re-chunked (%d chunks)" % after.get("itemChunks"))
-
-        # ------------------------------------------------- mixed version clients
-            # A 0.7.1 client still writes answer records inline. Loading must
-            # union them with the chunks and fold them in on the next save.
-            mixed_id = ids[-3]
-            mixed_answer = {
-                mixed_id: {"mapValue": {"fields": {
-                    "attempts": {"integerValue": "50"},
-                    "correct": {"integerValue": "40"},
-                    "firstCorrect": {"stringValue": "2026-01-02T03:04:05.000Z"},
-                }}}
-            }
-            status, _ = request_json(
-                doc_url(uid_c) + "?updateMask.fieldPaths=progress.answered",
-                method="PATCH",
-                body={"fields": {"progress": {"mapValue": {"fields": {
-                    "answered": {"mapValue": {"fields": mixed_answer}},
-                }}}}},
-            )
-            if status != 200:
-                fail("could not simulate an inline write from a 0.7.1 client (%d)" % status)
-            else:
-                page_c.reload(wait_until="load")
-                page_c.wait_for_function(
-                    "window.QuestionaireCloud && window.QuestionaireCloud.configured", timeout=20000
-                )
-                deadline = time.time() + 30
-                stored_mixed = None
-                while time.time() < deadline:
-                    stored_mixed = progress_of(firestore_doc(uid_c) or {})
-                    if "answered" not in stored_mixed and int(stored_mixed.get("itemCount") or 0) >= 13760:
-                        break
-                    time.sleep(0.5)
-                record = read_answered(uid_c).get(mixed_id, {})
-                if int(record.get("attempts") or 0) < 50:
-                    fail("inline 0.7.1 answer record was lost (attempts=%r)" % record.get("attempts"))
-                elif stored_mixed is not None and "answered" in stored_mixed:
-                    fail("inline answer records were not folded into the chunks")
-                else:
-                    ok("mixed-version inline records union into the chunks and are cleared")
-
-        # ------------------------------------- oversized main-document guard
-        context_d, page_d = open_app(browser)
-        guard_profile = build_profile(ids, "A", 50, 60, 1763000000000, per_attempt=1200)
-        guard_bytes = len(json.dumps(guard_profile).encode("utf-8"))
-        print("guard probe local payload: %d bytes (%.1f KiB)" % (guard_bytes, guard_bytes / 1024))
-        seed_local(page_d, guard_profile)
-        uid_d = sign_in(page_d, EMAIL_D, PASSWORD, display_name="Heavy profile")
-        doc_d = wait_for_doc(uid_d, lambda value: bool(fields_of(value).get("progress")), timeout=45)
-        if not doc_d:
-            fail("oversized profile never reached Firestore")
-        else:
-            core_d = progress_of(doc_d)
-            main_d = document_bytes(doc_d)
-            print("guarded main document: %d bytes (%.1f KiB), syncTrimmed=%r" % (
-                main_d, main_d / 1024, core_d.get("syncTrimmed")))
-            if main_d >= LIMIT:
-                fail("main document is over the 1 MiB limit")
-            elif core_d.get("syncTrimmed") is not True:
-                fail("oversized main document was not trimmed")
-            else:
-                ok("oversized profile is trimmed to %.1f KiB before upload" % (main_d / 1024))
-            local_d = json.loads(stored_payload(page_d, uid_d) or "{}")
-            if len(local_d.get("attempts", [])) != 60:
-                fail("cloud trimming changed the local attempt history")
-            else:
-                ok("local history keeps all 60 sittings after cloud trimming")
-
-        # ------------------------------------------------------------------ rules
-        token = id_token(EMAIL_A, PASSWORD)
-        if not token:
-            fail("could not mint an ID token for the rules check")
-        else:
-            status, _ = request_json(
-                doc_url("someone-else"),
-                method="PATCH",
-                body={"fields": {"progress": {"mapValue": {"fields": {}}}}},
-                token=token,
-            )
-            if status in (401, 403):
-                ok("rules deny writing another account's document (%d)" % status)
-            else:
-                fail("rules allowed a foreign write (%d)" % status)
-            status, _ = request_json(doc_url(uid, 0), token=token)
-            if status == 200:
-                ok("rules allow reading your own chunk documents")
-            else:
-                fail("owner could not read their own chunk document (%d)" % status)
-
-        for context in (context_a, context_b, context_c, context_d):
-            context.close()
-        browser.close()
+                fail("no account to check the rules against")
+        finally:
+            browser.close()
 
     if failures:
         print("\n%d emulator checks failed" % len(failures))
