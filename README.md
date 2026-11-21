@@ -33,6 +33,18 @@ git push origin main
 
 Cloud login only works after the public Firebase config is filled in and the providers are enabled. See [Firebase setup](#firebase-setup).
 
+## Release 0.7.4-alpha
+
+**0.7.4-alpha** fixes the two sync defects that survived the last round: deletions came back, and a failed save looked exactly like a successful one.
+
+**Deletions are recorded.** A union merge cannot tell "never had it" from "deleted it", so a question un-starred on one device reappeared from the other device's copy, and a discarded sitting came back on the next sign-in. Every removal now writes a timestamped tombstone into `progress.tombstones` (`bm:` bookmark, `mk:` mistake, `co:` later-corrected, `st:` sitting) and the merge keeps the most recent decision per key. Re-adding an item writes an "alive" entry with a later stamp — even on a device that never saw the deletion, where the older tombstone used to win silently — so a re-star survives the merge; a sitting resumed later has a newer `savedAt` and is unaffected. The map is capped at 1,200 entries, oldest first.
+
+**Sync failures are visible.** The account card shows *synced 14:32*, *waiting for the first sync*, *history trimmed to fit*, or *Not synced — … Retrying automatically*, and the sidebar note says when a sync is failing. Saves report `lastSyncedAt`, `syncError` and `syncTrimmed` on `window.QuestionaireCloud.state`, and a failed save retries with backoff from 2 s to 60 s, always with the newest in-memory record. A failed *read* is not retried with a write, and hydration now stops instead of overwriting a cloud copy it could not load. Edits made while the first sync is still running are queued instead of dropped.
+
+**More attributed questions.** `open-bank.js` grows from 15 to 42 drills against the open education sources in `sources.js`: three more each for calculus, precalculus and trigonometry, algebra and geometry, biology and chemistry, plus three each for astronomy, statistics and probability, world history and organic chemistry — 27 new items on new topics such as the chain rule, optimisation, geometric sequences, mitosis, enzymes, Mendelian ratios, stoichiometry, Boyle's law, absorption spectra, white dwarfs, independence, the Silk Roads and hybridisation.
+
+`tests/emulator.py` covers both sync fixes: device B clears every star and discards the paused sitting, device A reloads with both still in memory, and neither may come back; re-starring afterwards must be recorded as alive rather than deleted.
+
 ## Release 0.7.3-alpha
 
 **0.7.3-alpha** closes the mixed-version gap 0.7.2 left behind. A device still on 0.7.1 writes answer records inline in the main document; 0.7.2 loaded only the chunk documents, so those records were ignored. `loadProgress` now unions the inline records with the chunk records one question at a time (highest attempt and correct counts, earliest first-correct stamp, latest attempt) and the next save folds them into the chunks and deletes the inline map.

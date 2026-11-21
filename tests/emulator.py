@@ -8,6 +8,7 @@ with the production profile shape, and checks:
   * stored document sizes against Firestore's 1 MiB per-document limit
   * a legacy inline-only profile and a mixed 0.7.1/0.7.2 profile
   * the client-side budget for an oversized main document
+  * tombstones: a deletion on one device beats a stale copy on another
   * rules denying another account's documents
 
 Requires the emulators on 127.0.0.1:9099 / :8080 and the app served on
@@ -45,6 +46,7 @@ RUN = str(int(time.time()))[-6:]
 EMAIL_A = "device-a-" + RUN + "@example.test"
 EMAIL_C = "size-" + RUN + "@example.test"
 EMAIL_D = "heavy-" + RUN + "@example.test"
+EMAIL_T = "tombstone-" + RUN + "@example.test"
 
 failures = []
 
@@ -647,6 +649,139 @@ def check_oversize_guard(browser, ids):
         )
 
 
+def check_tombstones(browser, ids):
+    """A deletion must beat the copy the other device still holds.
+
+    Device B clears every star and discards the paused sitting, then the stale
+    device A reloads. A plain union merge would bring both back. The re-star at
+    the end proves a later addition still beats the tombstone.
+    """
+    profile = build_profile(ids, "A", answered_count=30, attempt_count=2, saved_at=SAVED_A)
+    profile["paused"] = [build_sitting(ids, "B", SAVED_A - 5000)]
+    # The practice tab opens on this question, so the re-star below lands on a
+    # question that definitely has a tombstone.
+    if "bio-1" in ids:
+        profile["bookmarks"].append("bio-1")
+
+    with device(browser, profile, EMAIL_T, "Tombstones") as (page_a, uid):
+        check(bool(wait_for_doc(uid, has_progress)), "tombstone device saved its profile")
+
+        with device(browser, profile, EMAIL_T) as (page_b, uid_b):
+            check(uid_b == uid, "second device joins for the tombstone check")
+            page_b.on("dialog", lambda dialog: dialog.accept())
+
+            page_b.goto(BASE_URL + "/index.html#/review", wait_until="load")
+            page_b.wait_for_selector('[data-action="clear-bookmarks"]', timeout=20000)
+            page_b.click('[data-action="clear-bookmarks"]')
+            check(
+                bool(wait_until(lambda: not (progress_snapshot(uid).get("bookmarks") or []), timeout=45)),
+                "clearing stars empties the cloud bookmark list",
+            )
+            tombstones = progress_snapshot(uid).get("tombstones") or {}
+            tombstoned = {str(key)[3:] for key in tombstones if str(key).startswith("bm:")}
+            check(
+                len(tombstoned) >= 40,
+                "clearing stars records bookmark tombstones (%d entries)" % len(tombstoned),
+            )
+
+            page_b.goto(BASE_URL + "/index.html#/dashboard", wait_until="load")
+            page_b.wait_for_selector('[data-action="discard-paused"]', timeout=20000)
+            page_b.click('[data-action="discard-paused"]')
+            check(
+                bool(wait_until(lambda: not (progress_snapshot(uid).get("paused") or []), timeout=45)),
+                "discarding a paused sitting empties the paused list",
+            )
+
+            # Device A still has both in memory and in its own cache.
+            page_a.reload(wait_until="load")
+            wait_for_boot(page_a)
+
+            def clean():
+                stored = json.loads(
+                    page_a.evaluate(
+                        "key => localStorage.getItem(key)", "questionaire.progress.v1.cloud." + uid
+                    )
+                    or "{}"
+                )
+                if stored.get("bookmarks") or stored.get("paused"):
+                    return None
+                return stored
+
+            check(bool(wait_until(clean, timeout=45)), "a stale device does not resurrect deleted items")
+
+            # Re-starring on the stale device must survive the merge with the
+            # tombstone it just received.
+            page_a.goto(BASE_URL + "/index.html#/subject/biology/practice", wait_until="load")
+            try:
+                page_a.wait_for_selector('[data-action="bookmark"]', timeout=20000)
+                starred = page_a.eval_on_selector(
+                    '[data-action="bookmark"]', "element => element.getAttribute('data-qid')"
+                )
+                page_a.click('[data-action="bookmark"]')
+            except Exception:
+                starred = None
+            if not starred:
+                fail("no practice question was available to re-star")
+                return
+
+            def restored():
+                state = progress_snapshot(uid)
+                return None if starred not in (state.get("bookmarks") or []) else state
+
+            check(
+                bool(wait_until(restored, timeout=45)),
+                "re-starring after a merge keeps the bookmark (%s)" % starred,
+            )
+            entry = (progress_snapshot(uid).get("tombstones") or {}).get("bm:" + starred) or {}
+            if starred in tombstoned:
+                check(
+                    entry.get("deleted") is False,
+                    "the re-starred bookmark is recorded as alive, not deleted (%r)"
+                    % entry.get("deleted"),
+                )
+            else:
+                ok("re-starred %s was not tombstoned; the bookmark is stored anyway" % starred)
+
+            if starred not in tombstoned:
+                return
+
+            # A device that never saw the deletion. The guest profile stars the
+            # question without any tombstone in its record, then signs in; its
+            # add is newer than the deletion, so it must survive the merge.
+            page_a.goto(BASE_URL + "/index.html#/subject/biology/practice", wait_until="load")
+            page_a.wait_for_selector('[data-action="bookmark"]', timeout=20000)
+            page_a.click('[data-action="bookmark"]')
+            check(
+                bool(
+                    wait_until(
+                        lambda: starred not in (progress_snapshot(uid).get("bookmarks") or []),
+                        timeout=45,
+                    )
+                ),
+                "un-starring on a synced device records a fresh deletion (%s)" % starred,
+            )
+
+            with device(browser) as (page_c, _):
+                page_c.wait_for_selector('[data-action="guest-signin"]', timeout=20000)
+                page_c.click('[data-action="guest-signin"]')
+                page_c.goto(BASE_URL + "/index.html#/subject/biology/practice", wait_until="load")
+                page_c.wait_for_selector('[data-action="bookmark"]', timeout=20000)
+                page_c.click('[data-action="bookmark"]')
+                sign_in(page_c, EMAIL_T)
+
+                def revived():
+                    state = progress_snapshot(uid)
+                    entry = (state.get("tombstones") or {}).get("bm:" + starred) or {}
+                    if entry.get("deleted") is not False:
+                        return None
+                    return state if starred in (state.get("bookmarks") or []) else None
+
+                check(
+                    bool(wait_until(revived, timeout=45)),
+                    "a device that never saw the deletion keeps its re-star (%s)" % starred,
+                )
+
+
 def check_rules(uid):
     """Owner-only rules: foreign writes refused, own chunks readable."""
     token = id_token(EMAIL_A, PASSWORD)
@@ -673,6 +808,7 @@ def main():
             uid = check_two_device_merge(browser, ids)
             check_sizes(browser, ids)
             check_oversize_guard(browser, ids)
+            check_tombstones(browser, ids)
             if uid:
                 check_rules(uid)
             else:
@@ -683,7 +819,7 @@ def main():
     if failures:
         print("\n%d emulator checks failed" % len(failures))
         sys.exit(1)
-    print("\nOK: emulator merge, two-device sitting, size and rules checks passed")
+    print("\nOK: emulator merge, two-device sitting, size, tombstone and rules checks passed")
 
 
 if __name__ == "__main__":

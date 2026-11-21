@@ -1,3 +1,22 @@
+# Questionaire 0.7.4-alpha — Deletions that stick and a sync you can see
+
+Released 21 November 2026.
+
+## Fixed
+
+- **Deleted items came back from the other device.** The merge was a pure union, so un-starring a question on one device was undone by the copy another device still held; the same applied to cleared mistakes, later-corrected entries and discarded or finished sittings. Removals now write a timestamped tombstone in `progress.tombstones`, and the merge keeps the most recent decision per key (`bm:`, `mk:`, `co:`, `st:`). Re-adding writes an alive entry with a later stamp so a re-star still wins, including on a device that never saw the deletion — the case where the older tombstone used to drop the new star at the next merge. A sitting resumed later carries a newer `savedAt` than the old discard. The map is capped at 1,200 entries, dropping the oldest live stamps before any deletion.
+- **A failed save was invisible.** The local record stayed correct while the cloud copy silently fell behind, with no message and no retry. `saveProgress` and `loadProgress` now report `lastSyncedAt`, `syncError` and `syncTrimmed` on the public state; the account card shows the last successful sync time or the failure, and failed saves retry with exponential backoff from 2 s to 60 s using the newest in-memory record.
+- **Edits during the first sync were dropped.** `scheduleCloudSave` returned early while `cloudHydrating` was true, and the hydration save had already serialised the older record. The save is now queued and runs when hydration finishes.
+- **A failed read was followed by a write.** When `loadProgress` failed, hydration still pushed the local record, which could overwrite answers the device had simply failed to read. Saving now stops for that session and the user is told why.
+
+## Content
+
+- 27 new drills in `open-bank.js`, each aligned to an open source in `sources.js`: calculus (chain rule, optimisation, definite integrals), precalculus and trigonometry (unit circle, geometric sequences, identities), algebra and geometry (systems, quadratics, circle area), biology (mitosis, enzymes, Mendelian ratios), chemistry (stoichiometry, Boyle's law, periodic trends), astronomy (fusion, absorption spectra, degeneracy pressure), statistics and probability (elementary probability, median, independence), world history (Nile, Silk Roads, Achaemenid empire) and organic chemistry (hybridisation, carboxyl group, alkane prefixes). The attributed bank now holds 42 items.
+
+## Tests
+
+- `tests/emulator.py` gains `check_tombstones`: device B clears all stars and discards the paused sitting, device A reloads with both still cached, and neither may reappear; re-starring a tombstoned question must then be stored as alive.
+
 # Questionaire 0.7.3-alpha — Mixed-version merge and emulator CI
 
 Released 21 November 2026.

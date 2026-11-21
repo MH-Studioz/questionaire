@@ -17,7 +17,7 @@
      Constants
      -------------------------------------------------------------------------- */
 
-  const APP_VERSION = "0.7.3-alpha";
+  const APP_VERSION = "0.7.4-alpha";
   const STORAGE_KEY = "questionaire.progress.v1";
   const ACCOUNTS_KEY = "questionaire.accounts.v1";
   const THEME_KEY = "questionaire.theme";
@@ -269,6 +269,7 @@
   let cloudState = { configured: false, status: "unconfigured", user: null, error: null };
   let cloudUid = null;
   let cloudHydrating = false;
+  let cloudSavePending = false;
   let cloudSaveTimer = null;
   let focusQid = null;
 
@@ -295,7 +296,8 @@
       attempts: [],
       active: null,
       paused: [],
-      frq: {}
+      frq: {},
+      tombstones: {}
     };
   }
 
@@ -358,7 +360,8 @@
       (Array.isArray(value.attempts) && value.attempts.length) ||
       (Array.isArray(value.paused) && value.paused.length) ||
       (value.topicStats && Object.keys(value.topicStats).length) ||
-      (value.frq && Object.keys(value.frq).length)
+      (value.frq && Object.keys(value.frq).length) ||
+      (value.tombstones && Object.keys(value.tombstones).length)
     );
   }
 
@@ -389,6 +392,93 @@
     } catch (error) {
       return null;
     }
+  }
+
+  /* A union merge cannot tell "never had it" from "deleted it", so every
+     deletion leaves a timestamped tombstone and the merge keeps the most
+     recent decision for each key. Re-adding an item writes an "alive" entry
+     with a later stamp, which is what lets a re-bookmark survive a merge with
+     the device that deleted it. Keys are prefixed by kind:
+       bm:<questionId>  bookmark
+       mk:<questionId>  mistake
+       co:<questionId>  later corrected
+       st:<sittingKey>  unfinished or paused sitting */
+  const TOMBSTONE_LIMIT = 1200;
+
+  function tombstoneMap(source) {
+    const map = {};
+    const value = source && typeof source === "object" ? source : {};
+    Object.keys(value).forEach(function (key) {
+      const entry = value[key];
+      if (!entry || typeof entry !== "object") return;
+      const at = String(entry.at || "");
+      if (!at) return;
+      map[key] = { at: at, deleted: Boolean(entry.deleted) };
+    });
+    return map;
+  }
+
+  function pruneTombstones(map) {
+    const keys = Object.keys(map || {});
+    const excess = keys.length - TOMBSTONE_LIMIT;
+    if (excess <= 0) return map;
+    const oldestFirst = function (a, b) { return String(map[a].at).localeCompare(String(map[b].at)); };
+    /* A deletion has to survive until every device has merged it, while a live
+       stamp only has to out-vote a deletion of the same item. Overflow drops
+       the oldest live stamps first. */
+    const live = keys.filter(function (key) { return !map[key].deleted; }).sort(oldestFirst);
+    const gone = keys.filter(function (key) { return map[key].deleted; }).sort(oldestFirst);
+    live
+      .concat(gone)
+      .slice(0, excess)
+      .forEach(function (key) { delete map[key]; });
+    return map;
+  }
+
+  function ensureTombstones() {
+    if (!progress.tombstones || typeof progress.tombstones !== "object") progress.tombstones = {};
+    return progress.tombstones;
+  }
+
+  function recordRemoval(kind, id) {
+    if (!id) return;
+    const map = ensureTombstones();
+    map[kind + ":" + id] = { at: new Date().toISOString(), deleted: true };
+    pruneTombstones(map);
+  }
+
+  /* Stamp every add, even when this device never saw the deletion. A bookmark
+     carries no timestamp of its own, so without a stamp the older tombstone
+     from another device would silently drop the re-add at the next merge. */
+  function recordReturn(kind, id) {
+    if (!id) return;
+    const map = ensureTombstones();
+    const key = kind + ":" + id;
+    const entry = map[key];
+    if (entry && !entry.deleted) return;
+    map[key] = { at: new Date().toISOString(), deleted: false };
+    pruneTombstones(map);
+  }
+
+  /* True when the latest decision on this key is a deletion newer than the
+     item's own stamp (a corrected stamp or a sitting's savedAt). */
+  function tombstoneRemoved(tombstones, kind, id, at) {
+    const entry = tombstones && tombstones[kind + ":" + id];
+    if (!entry || !entry.deleted) return false;
+    if (!at) return true;
+    return String(entry.at) >= String(at);
+  }
+
+  function mergeTombstones(left, right) {
+    const merged = {};
+    [left, right].forEach(function (source) {
+      const map = tombstoneMap(source);
+      Object.keys(map).forEach(function (key) {
+        const current = merged[key];
+        if (!current || String(map[key].at) > String(current.at)) merged[key] = map[key];
+      });
+    });
+    return pruneTombstones(merged);
   }
 
   function mergeAttempts(left, right) {
@@ -457,7 +547,7 @@
      target; the others stay resumable instead of being overwritten by the
      merge. Keys are subject + paper, so the same paper on both devices keeps
      only the more recent save. */
-  function mergeSittings(left, right) {
+  function mergeSittings(left, right, tombstones) {
     const pool = [];
     [left, right].forEach(function (source) {
       if (!source || typeof source !== "object") return;
@@ -472,6 +562,10 @@
     pool.forEach(function (sitting) {
       const key = sittingKey(sitting);
       if (seen.has(key)) return;
+      /* A discard on either device must beat the copy the other still holds.
+         Resuming the same subject and paper later mints a newer savedAt, so a
+         fresh sitting still comes back as resumable. */
+      if (tombstoneRemoved(tombstones, "st", key, sitting.savedAt)) return;
       seen.add(key);
       kept.push(sitting);
     });
@@ -481,6 +575,7 @@
   function mergeProgress(local, remote) {
     const left = Object.assign(defaultProgress(), local && typeof local === "object" ? local : {});
     const right = Object.assign(defaultProgress(), remote && typeof remote === "object" ? remote : {});
+    const tombstones = mergeTombstones(left.tombstones, right.tombstones);
     const answered = {};
     const ids = new Set(Object.keys(left.answered || {}).concat(Object.keys(right.answered || {})));
     ids.forEach(function (id) {
@@ -496,18 +591,24 @@
       };
     });
 
-    const bookmarks = Array.from(new Set((left.bookmarks || []).concat(right.bookmarks || []))).filter(isKnownQuestionId);
+    const bookmarks = Array.from(new Set((left.bookmarks || []).concat(right.bookmarks || [])))
+      .filter(isKnownQuestionId)
+      .filter(function (id) { return !tombstoneRemoved(tombstones, "bm", id); });
     const corrected = {};
     [left.corrected || {}, right.corrected || {}].forEach(function (source) {
       Object.keys(source).forEach(function (id) {
         if (!corrected[id] || String(source[id]) > String(corrected[id])) corrected[id] = source[id];
       });
     });
+    Object.keys(corrected).forEach(function (id) {
+      if (tombstoneRemoved(tombstones, "co", id, corrected[id])) delete corrected[id];
+    });
     const mistakes = Array.from(new Set((left.mistakes || []).concat(right.mistakes || [])))
       .filter(isKnownQuestionId)
-      .filter(function (id) { return !corrected[id]; });
+      .filter(function (id) { return !corrected[id]; })
+      .filter(function (id) { return !tombstoneRemoved(tombstones, "mk", id); });
     const lastStudyDate = [left.lastStudyDate, right.lastStudyDate].filter(Boolean).sort().pop() || null;
-    const sittings = mergeSittings(left, right);
+    const sittings = mergeSittings(left, right, tombstones);
 
     const vocab = {};
     [left.vocab || {}, right.vocab || {}].forEach(function (source) {
@@ -549,7 +650,8 @@
       attempts: mergeAttempts(left.attempts, right.attempts),
       active: sittings.active,
       paused: sittings.paused,
-      frq: mergeFrq(left.frq, right.frq)
+      frq: mergeFrq(left.frq, right.frq),
+      tombstones: tombstones
     };
   }
 
@@ -563,7 +665,13 @@
   }
 
   function scheduleCloudSave() {
-    if (!cloud || !cloudState.user || cloudHydrating) return;
+    if (!cloud || !cloudState.user) return;
+    /* An edit made while the first sync is still running used to be dropped,
+       because the hydration save had already serialised the older record. */
+    if (cloudHydrating) {
+      cloudSavePending = true;
+      return;
+    }
     window.clearTimeout(cloudSaveTimer);
     cloudSaveTimer = window.setTimeout(function () {
       if (!cloud || !cloudState.user || cloudHydrating) return;
@@ -583,17 +691,31 @@
     if (!merged.answered || typeof merged.answered !== "object") merged.answered = {};
     if (!Array.isArray(merged.bookmarks)) merged.bookmarks = [];
     if (!Array.isArray(merged.mistakes)) merged.mistakes = [];
-    merged.bookmarks = merged.bookmarks.filter(isKnownQuestionId);
+    merged.tombstones = pruneTombstones(tombstoneMap(merged.tombstones));
+    merged.bookmarks = merged.bookmarks.filter(isKnownQuestionId).filter(function (id) {
+      return !tombstoneRemoved(merged.tombstones, "bm", id);
+    });
     if (!merged.corrected || typeof merged.corrected !== "object") merged.corrected = {};
+    Object.keys(merged.corrected).forEach(function (id) {
+      if (tombstoneRemoved(merged.tombstones, "co", id, merged.corrected[id])) delete merged.corrected[id];
+    });
     merged.mistakes = merged.mistakes.filter(isKnownQuestionId).filter(function (id) {
       return !merged.corrected[id];
+    }).filter(function (id) {
+      return !tombstoneRemoved(merged.tombstones, "mk", id);
     });
     if (!merged.topicStats || typeof merged.topicStats !== "object") merged.topicStats = {};
     if (!Array.isArray(merged.attempts)) merged.attempts = [];
     merged.attempts = mergeAttempts(merged.attempts, []);
     if (!merged.active || typeof merged.active !== "object") merged.active = null;
+    if (merged.active && tombstoneRemoved(merged.tombstones, "st", sittingKey(merged.active), merged.active.savedAt)) {
+      merged.active = null;
+    }
     merged.paused = (Array.isArray(merged.paused) ? merged.paused : [])
       .filter(usableSitting)
+      .filter(function (sitting) {
+        return !tombstoneRemoved(merged.tombstones, "st", sittingKey(sitting), sitting.savedAt);
+      })
       .filter(function (sitting) { return !merged.active || sittingKey(sitting) !== sittingKey(merged.active); })
       .slice(0, MAX_PAUSED);
     if (!merged.frq || typeof merged.frq !== "object") merged.frq = {};
@@ -877,6 +999,7 @@
       progress.mistakes.push(questionId);
       /* Missed again after a clean retry: it returns to the active queue. */
       delete progress.corrected[questionId];
+      recordReturn("mk", questionId);
     }
     /* A miss answered correctly on a later attempt leaves the active queue and
        is filed as "later corrected" so the review tab can show the recovery. */
@@ -926,9 +1049,11 @@
     const index = progress.bookmarks.indexOf(questionId);
     if (index >= 0) {
       progress.bookmarks.splice(index, 1);
+      recordRemoval("bm", questionId);
       toast("Bookmark removed.", "is-warn");
     } else {
       progress.bookmarks.push(questionId);
+      recordReturn("bm", questionId);
       toast("Saved to the review queue.");
     }
     saveProgress();
@@ -1465,14 +1590,24 @@
      Chrome and sidebar
      -------------------------------------------------------------------------- */
 
+  /* What the account card says about the cloud copy. A failed save used to
+     look identical to a successful one. */
+  function syncStamp() {
+    if (!cloudState.lastSyncedAt) return "waiting for the first sync";
+    const clock = new Date(cloudState.lastSyncedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return "synced " + clock + (cloudState.syncTrimmed ? " · history trimmed to fit" : "");
+  }
+
   function accountCardHTML() {
     const user = cloudIdentity();
     if (user) {
       const name = user.displayName || user.email || "Cloud account";
       const provider = user.provider === "google.com" ? "Google account" : "Email account";
-      const note = cloudState.status === "error"
+      const note = cloudState.syncError
+        ? "Not synced — " + cloudState.syncError + " Retrying automatically."
+        : cloudState.status === "error"
         ? (cloudState.error || "Cloud sync needs attention.")
-        : provider + " · synced";
+        : provider + " · " + syncStamp();
       return (
         '<div class="account-summary">' +
         '<span class="account-avatar">' + esc(name.charAt(0).toUpperCase()) + "</span>" +
@@ -1514,7 +1649,11 @@
     if (note) {
       const user = cloudIdentity();
       note.textContent = user
-        ? (user.provider === "google.com" ? "Google account · synced" : "Email account · synced")
+        ? cloudState.syncError
+          ? "Cloud sync failed · retrying"
+          : cloudState.status === "error"
+          ? "Sign-in needs attention"
+          : syncStamp()
         : activeAccount
         ? (activeAccount.guest ? "Guest · this browser only" : "Local profile · offline only")
         : "Sign in required";
@@ -1528,6 +1667,12 @@
     try {
       const remote = await cloud.loadProgress();
       if (!cloudState.user || cloudState.user.uid !== user.uid) return;
+      /* A failed read must not be followed by a write: that would replace the
+         other device's copy with whatever this one had cached. */
+      if (cloudState.syncError) {
+        toast("Cloud sync could not load your profile, so saving is paused. Your local progress is safe.", "is-warn");
+        return;
+      }
       if (remote) {
         progress = mergeProgress(progress, remote);
         normalizeStreak();
@@ -1541,6 +1686,12 @@
       toast("Cloud sync is unavailable. Local progress is safe.", "is-warn");
     } finally {
       cloudHydrating = false;
+      if (cloudSavePending) {
+        cloudSavePending = false;
+        /* Never queue a write behind a read that failed: it would replace the
+           copy this device could not load. */
+        if (!cloudState.syncError) scheduleCloudSave();
+      }
     }
   }
 
@@ -2696,6 +2847,8 @@
       topics: topics
     };
     progress.attempts = [attempt].concat(progress.attempts || []).slice(0, MAX_ATTEMPTS);
+    /* The finished paper must not come back as unfinished on another device. */
+    if (usableSitting(progress.active)) recordRemoval("st", sittingKey(progress.active));
     progress.active = null;
     saveProgress();
     return attempt;
@@ -2743,6 +2896,7 @@
     const entry = SUBJECT_MAP.get(active.subjectId);
     const questions = entry ? questionObjectsFor(active.questions, active.subjectId) : [];
     if (!entry || !questions.length) {
+      recordRemoval("st", sittingKey(active));
       progress.active = null;
       saveProgress();
       toast("That sitting can no longer be rebuilt.", "is-warn");
@@ -2806,6 +2960,7 @@
     const paused = Array.isArray(progress.paused) ? progress.paused : [];
     const sitting = paused[index];
     if (!usableSitting(sitting)) {
+      if (sitting && typeof sitting === "object") recordRemoval("st", sittingKey(sitting));
       progress.paused = paused.filter(function (item, position) { return position !== index; });
       saveProgress();
       paint();
@@ -2822,6 +2977,7 @@
   function discardPausedSitting(index) {
     const paused = Array.isArray(progress.paused) ? progress.paused : [];
     if (!paused[index]) return;
+    recordRemoval("st", sittingKey(paused[index]));
     progress.paused = paused.filter(function (item, position) { return position !== index; });
     saveProgress();
     paint();
@@ -4563,6 +4719,7 @@
 
     if (action === "discard-attempt") {
       if (!window.confirm("Discard the unfinished sitting? It will not be saved.")) return;
+      if (usableSitting(progress.active)) recordRemoval("st", sittingKey(progress.active));
       const next = (Array.isArray(progress.paused) ? progress.paused : [])[0] || null;
       progress.active = next;
       progress.paused = next ? progress.paused.slice(1) : [];
@@ -4749,6 +4906,7 @@
     if (action === "clear-bookmarks") {
       if (!progress.bookmarks.length) return;
       if (!window.confirm("Clear all starred questions?")) return;
+      progress.bookmarks.forEach(function (id) { recordRemoval("bm", id); });
       progress.bookmarks = [];
       saveProgress();
       paint();
@@ -4759,6 +4917,8 @@
     if (action === "clear-mistakes") {
       if (!progress.mistakes.length) return;
       if (!window.confirm("Clear the entire mistake bank, including questions marked later corrected?")) return;
+      progress.mistakes.forEach(function (id) { recordRemoval("mk", id); });
+      Object.keys(progress.corrected || {}).forEach(function (id) { recordRemoval("co", id); });
       progress.mistakes = [];
       progress.corrected = {};
       saveProgress();

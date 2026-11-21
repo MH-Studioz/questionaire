@@ -39,13 +39,21 @@
   let operation = null;
   let error = null;
   let user = null;
+  /* Sync health, kept separate from auth status so a failed save never looks
+     like a lost session. */
+  let retryTimer = null;
+  let retryDelay = 0;
+  let lastSnapshot = null;
   const listeners = new Set();
 
   const state = {
     configured: CONFIGURED,
     status: CONFIGURED ? "idle" : "unconfigured",
     user: null,
-    error: null
+    error: null,
+    lastSyncedAt: null,
+    syncError: null,
+    syncTrimmed: false
   };
 
   function publicUser(value) {
@@ -70,7 +78,10 @@
       status: state.status,
       user: publicUser(user),
       error: error,
-      operation: operation
+      operation: operation,
+      lastSyncedAt: state.lastSyncedAt,
+      syncError: state.syncError,
+      syncTrimmed: state.syncTrimmed
     };
   }
 
@@ -156,6 +167,45 @@
     return false;
   }
 
+  /* --------------------------------------------------------------------------
+     Sync health and retry
+     --------------------------------------------------------------------------
+     A failed save used to be invisible: the local record stayed correct, but
+     nothing told the user the cloud copy was stale and nothing retried. Saves
+     now report their outcome and back off from 2 s to 60 s. */
+  const RETRY_BASE = 2000;
+  const RETRY_MAX = 60000;
+
+  function noteSynced(trimmed) {
+    state.lastSyncedAt = new Date().toISOString();
+    state.syncError = null;
+    state.syncTrimmed = Boolean(trimmed);
+    retryDelay = 0;
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  }
+
+  function noteSyncFailure(caught) {
+    state.syncError = friendlyError(caught);
+    /* Keep a signed-in user signed in; only a signed-out failure is an error. */
+    if (!user) state.status = "error";
+    publish();
+  }
+
+  function scheduleRetry() {
+    if (!CONFIGURED || retryTimer || !auth || !auth.currentUser) return;
+    retryDelay = Math.min(RETRY_MAX, retryDelay ? retryDelay * 2 : RETRY_BASE);
+    retryTimer = setTimeout(function () {
+      retryTimer = null;
+      if (!auth || !auth.currentUser || !lastSnapshot) return;
+      /* The app mutates one progress object, so the retry carries the newest
+         answers rather than the snapshot that failed. */
+      saveProgress(lastSnapshot).catch(function () {});
+    }, retryDelay);
+  }
+
   async function loadSdk() {
     if (sdk) return sdk;
     const modules = await Promise.all([
@@ -209,6 +259,17 @@
         }
         user = nextUser || null;
         error = null;
+        state.syncError = null;
+        state.syncTrimmed = false;
+        if (!user) {
+          state.lastSyncedAt = null;
+          retryDelay = 0;
+          lastSnapshot = null;
+          if (retryTimer) {
+            clearTimeout(retryTimer);
+            retryTimer = null;
+          }
+        }
         state.status = user ? "signed-in" : "signed-out";
         operation = null;
         publish();
@@ -485,9 +546,14 @@
       delete progress.itemChunks;
       delete progress.itemCount;
       delete progress.itemsTruncated;
+      state.lastSyncedAt = new Date().toISOString();
+      state.syncError = null;
+      publish();
       return progress;
     } catch (loadError) {
-      fail(loadError);
+      /* Deliberately no retry here: a failed read must not be followed by a
+         write that overwrites the copy this device could not read. */
+      noteSyncFailure(loadError);
       return null;
     }
   }
@@ -495,6 +561,7 @@
   async function saveProgress(progress) {
     if (!CONFIGURED || !db || !auth || !auth.currentUser) return false;
     const uid = auth.currentUser.uid;
+    lastSnapshot = progress;
     try {
       const core = {};
       Object.keys(progress || {}).forEach(function (key) {
@@ -538,10 +605,12 @@
       chunkCache = { uid: uid, bodies: bodies };
       error = null;
       if (state.status === "error") state.status = "signed-in";
+      noteSynced(bounded.syncTrimmed);
       publish();
       return true;
     } catch (saveError) {
-      fail(saveError);
+      noteSyncFailure(saveError);
+      scheduleRetry();
       return false;
     }
   }

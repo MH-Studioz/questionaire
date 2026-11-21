@@ -59,6 +59,54 @@ window.QUESTIONAIRE_OPEN_BANK = {
       ],
       source: "openstax",
       sourceRef: "Calculus Volume 1, §5.6"
+    },
+    {
+      id: "calc-os-4",
+      difficulty: "Intermediate",
+      tags: ["chain rule", "derivatives"],
+      prompt: "Differentiate $f(x) = \\sin(3x)$.",
+      options: ["$3\\cos(3x)$", "$\\cos(3x)$", "$-3\\cos(3x)$", "$3\\sin(3x)$"],
+      answer: 0,
+      hint: "The outer function is sine and the inner function is $3x$.",
+      explanation: [
+        "The derivative of $\\sin u$ is $\\cos u$.",
+        "The inner function $3x$ contributes a factor of $3$ by the chain rule.",
+        "So $f'(x) = 3\\cos(3x)$."
+      ],
+      source: "openstax",
+      sourceRef: "Calculus Volume 1, §3.6"
+    },
+    {
+      id: "calc-os-5",
+      difficulty: "Intermediate",
+      tags: ["optimization", "quadratics"],
+      prompt: "A rectangle has perimeter $20$. What is its largest possible area?",
+      options: ["$25$", "$20$", "$100$", "$40$"],
+      answer: 0,
+      hint: "Write the sides as $x$ and $10 - x$, then maximize the product.",
+      explanation: [
+        "The two sides satisfy $x + y = 10$, so $y = 10 - x$.",
+        "Area $A(x) = x(10 - x) = 10x - x^2$.",
+        "This parabola peaks at $x = 5$, giving $A = 5 \\cdot 5 = 25$."
+      ],
+      source: "openstax",
+      sourceRef: "Calculus Volume 1, §4.7"
+    },
+    {
+      id: "calc-os-6",
+      difficulty: "Beginner",
+      tags: ["definite integrals", "power rule"],
+      prompt: "Evaluate $\\displaystyle\\int_0^2 3x^2\\,dx$.",
+      options: ["$8$", "$12$", "$6$", "$4$"],
+      answer: 0,
+      hint: "An antiderivative of $3x^2$ is $x^3$.",
+      explanation: [
+        "By the power rule, $\\int 3x^2\\,dx = x^3$.",
+        "Apply the Fundamental Theorem: $\\left[x^3\\right]_0^2$.",
+        "That is $2^3 - 0^3 = 8$."
+      ],
+      source: "openstax",
+      sourceRef: "Calculus Volume 1, §5.3"
     }
   ],
 
@@ -110,6 +158,54 @@ window.QUESTIONAIRE_OPEN_BANK = {
       ],
       source: "openstax",
       sourceRef: "Precalculus 2e, §4.3"
+    },
+    {
+      id: "pre-os-4",
+      difficulty: "Beginner",
+      tags: ["unit circle", "trigonometric values"],
+      prompt: "What is $\\sin\\left(\\frac{\\pi}{3}\\right)$?",
+      options: ["$\\frac{\\sqrt{3}}{2}$", "$\\frac{1}{2}$", "$\\frac{\\sqrt{2}}{2}$", "$1$"],
+      answer: 0,
+      hint: "At $\\frac{\\pi}{3}$ the reference triangle is half of an equilateral triangle.",
+      explanation: [
+        "$\\frac{\\pi}{3}$ is $60^{\\circ}$, whose reference triangle has sides $1$ and $\\sqrt{3}$ with hypotenuse $2$.",
+        "Sine is opposite over hypotenuse.",
+        "The opposite side is $\\sqrt{3}$, so $\\sin\\left(\\frac{\\pi}{3}\\right) = \\frac{\\sqrt{3}}{2}$."
+      ],
+      source: "openstax",
+      sourceRef: "Precalculus 2e, §5.2"
+    },
+    {
+      id: "pre-os-5",
+      difficulty: "Beginner",
+      tags: ["geometric sequences"],
+      prompt: "A geometric sequence begins $2, 6, 18, \\ldots$ What is the next term?",
+      options: ["$54$", "$24$", "$36$", "$48$"],
+      answer: 0,
+      hint: "Find the constant ratio between consecutive terms.",
+      explanation: [
+        "Each term is three times the one before: $6 \\div 2 = 3$ and $18 \\div 6 = 3$.",
+        "A geometric sequence multiplies by a fixed ratio, here $r = 3$.",
+        "The next term is $18 \\times 3 = 54$."
+      ],
+      source: "openstax",
+      sourceRef: "Precalculus 2e, §11.3"
+    },
+    {
+      id: "pre-os-6",
+      difficulty: "Intermediate",
+      tags: ["trigonometric identities"],
+      prompt: "If $\\cos\\theta = 0.6$ and $\\theta$ is acute, what is $\\sin\\theta$?",
+      options: ["$0.8$", "$0.4$", "$0.6$", "$1.0$"],
+      answer: 0,
+      hint: "Use $\\sin^2\\theta + \\cos^2\\theta = 1$.",
+      explanation: [
+        "$\\cos^2\\theta = 0.36$.",
+        "So $\\sin^2\\theta = 1 - 0.36 = 0.64$.",
+        "An acute angle has a positive sine, so $\\sin\\theta = 0.8$."
+      ],
+      source: "openstax",
+      sourceRef: "Precalculus 2e, §5.3"
     }
   ],
 
@@ -161,6 +257,54 @@ window.QUESTIONAIRE_OPEN_BANK = {
       ],
       source: "illustrative-math",
       sourceRef: "Geometry, Pythagorean theorem task family"
+    },
+    {
+      id: "alg-os-4",
+      difficulty: "Beginner",
+      tags: ["systems of equations", "linear equations"],
+      prompt: "Solve the system $x + y = 7$ and $x - y = 1$.",
+      options: ["$x = 4,\\; y = 3$", "$x = 3,\\; y = 4$", "$x = 5,\\; y = 2$", "$x = 6,\\; y = 1$"],
+      answer: 0,
+      hint: "Adding the two equations eliminates $y$.",
+      explanation: [
+        "Add the equations: $(x + y) + (x - y) = 7 + 1$, so $2x = 8$.",
+        "Therefore $x = 4$.",
+        "Substitute back: $4 + y = 7$, so $y = 3$."
+      ],
+      source: "illustrative-math",
+      sourceRef: "Algebra 1, systems of equations task family"
+    },
+    {
+      id: "alg-os-5",
+      difficulty: "Beginner",
+      tags: ["quadratics", "factoring"],
+      prompt: "What are the solutions of $x^2 - 5x + 6 = 0$?",
+      options: ["$x = 2$ and $x = 3$", "$x = -2$ and $x = -3$", "$x = 1$ and $x = 6$", "$x = -1$ and $x = -6$"],
+      answer: 0,
+      hint: "Find two numbers that multiply to $6$ and add to $-5$.",
+      explanation: [
+        "The factors must be $-2$ and $-3$ because $(-2)(-3) = 6$ and $-2 + (-3) = -5$.",
+        "Rewrite as $(x - 2)(x - 3) = 0$.",
+        "A product is zero when a factor is zero, so $x = 2$ or $x = 3$."
+      ],
+      source: "illustrative-math",
+      sourceRef: "Algebra 1, quadratic equations task family"
+    },
+    {
+      id: "alg-os-6",
+      difficulty: "Beginner",
+      tags: ["circles", "area"],
+      prompt: "A circle has radius $5$. What is its area?",
+      options: ["$25\\pi$", "$10\\pi$", "$5\\pi$", "$50\\pi$"],
+      answer: 0,
+      hint: "Area uses the radius squared, not the radius.",
+      explanation: [
+        "The area formula is $A = \\pi r^2$.",
+        "Substitute $r = 5$: $A = \\pi \\cdot 25$.",
+        "$10\\pi$ would be the circumference, not the area."
+      ],
+      source: "illustrative-math",
+      sourceRef: "Geometry, circles task family"
     }
   ],
 
@@ -217,6 +361,54 @@ window.QUESTIONAIRE_OPEN_BANK = {
       ],
       source: "openstax",
       sourceRef: "Biology 2e, ch. 14"
+    },
+    {
+      id: "bio-os-4",
+      difficulty: "Beginner",
+      tags: ["mitosis", "cell division"],
+      prompt: "During which phase of mitosis do sister chromatids separate?",
+      options: ["Anaphase", "Prophase", "Metaphase", "Telophase"],
+      answer: 0,
+      hint: "The name comes from the Greek for \"carrying back\".",
+      explanation: [
+        "In prophase the chromosomes condense, and in metaphase they line up on the spindle equator.",
+        "Anaphase is when the spindle fibres pull the sister chromatids apart toward opposite poles.",
+        "Telophase then rebuilds the nuclei around the separated sets."
+      ],
+      source: "openstax",
+      sourceRef: "Biology 2e, ch. 10"
+    },
+    {
+      id: "bio-os-5",
+      difficulty: "Beginner",
+      tags: ["enzymes", "metabolism"],
+      prompt: "What effect does an enzyme have on a reaction's activation energy?",
+      options: ["It lowers the activation energy", "It raises the activation energy", "It removes the need for activation energy entirely", "It has no effect on activation energy"],
+      answer: 0,
+      hint: "Enzymes speed up reactions without being consumed.",
+      explanation: [
+        "Activation energy is the energy barrier reactants must clear to react.",
+        "An enzyme binds the reactants and stabilises the transition state, lowering that barrier.",
+        "A lower barrier means more molecules react per unit time, but the enzyme is unchanged afterwards."
+      ],
+      source: "openstax",
+      sourceRef: "Biology 2e, ch. 6"
+    },
+    {
+      id: "bio-os-6",
+      difficulty: "Intermediate",
+      tags: ["genetics", "Mendelian ratios"],
+      prompt: "Two heterozygous parents ($Aa \\times Aa$) are crossed for a completely dominant trait. What phenotype ratio is expected?",
+      options: ["$3:1$", "$1:1$", "$9:3:3:1$", "$1:2:1$"],
+      answer: 0,
+      hint: "Draw a four-square Punnett square.",
+      explanation: [
+        "Each parent passes $A$ or $a$ with equal probability, giving $AA$, $Aa$, $Aa$ and $aa$.",
+        "Three of the four genotypes carry at least one $A$ and show the dominant phenotype.",
+        "The phenotype ratio is $3:1$; $1:2:1$ is the genotype ratio."
+      ],
+      source: "openstax",
+      sourceRef: "Biology 2e, ch. 12"
     }
   ],
 
@@ -268,6 +460,268 @@ window.QUESTIONAIRE_OPEN_BANK = {
       ],
       source: "openstax",
       sourceRef: "Chemistry 2e, ch. 4"
+    },
+    {
+      id: "chem-os-4",
+      difficulty: "Intermediate",
+      tags: ["stoichiometry", "moles"],
+      prompt: "For $2\\text{H}_2 + \\text{O}_2 \\to 2\\text{H}_2\\text{O}$, how many moles of $\\text{O}_2$ react with $2\\,$mol of $\\text{H}_2$?",
+      options: ["$1\\,$mol", "$2\\,$mol", "$0.5\\,$mol", "$4\\,$mol"],
+      answer: 0,
+      hint: "Read the coefficients in front of each formula.",
+      explanation: [
+        "The balanced equation uses two moles of $\\text{H}_2$ for every one mole of $\\text{O}_2$.",
+        "That is a $2:1$ ratio.",
+        "So $2\\,$mol of $\\text{H}_2$ consumes $1\\,$mol of $\\text{O}_2$."
+      ],
+      source: "openstax",
+      sourceRef: "Chemistry 2e, ch. 4"
+    },
+    {
+      id: "chem-os-5",
+      difficulty: "Beginner",
+      tags: ["gas laws", "pressure"],
+      prompt: "At constant temperature, doubling the volume of a fixed amount of gas does what to its pressure?",
+      options: ["Halves it", "Doubles it", "Leaves it unchanged", "Quadruples it"],
+      answer: 0,
+      hint: "Boyle's law relates pressure and volume inversely.",
+      explanation: [
+        "Boyle's law states $P_1V_1 = P_2V_2$ at constant temperature.",
+        "If $V_2 = 2V_1$, then $P_2 = P_1 \\cdot \\frac{V_1}{2V_1}$.",
+        "The pressure halves because the same molecules strike the walls half as often."
+      ],
+      source: "openstax",
+      sourceRef: "Chemistry 2e, ch. 9"
+    },
+    {
+      id: "chem-os-6",
+      difficulty: "Beginner",
+      tags: ["periodic trends", "atomic radius"],
+      prompt: "Which atom has the larger radius, sodium or chlorine?",
+      options: ["Sodium", "Chlorine", "They are equal", "It cannot be predicted"],
+      answer: 0,
+      hint: "Both are in period 3; think about effective nuclear charge.",
+      explanation: [
+        "Across a period the nuclear charge grows while electrons stay in the same shell.",
+        "The stronger pull contracts the electron cloud, so radius decreases left to right.",
+        "Sodium sits to the left of chlorine in period 3, so sodium is larger."
+      ],
+      source: "openstax",
+      sourceRef: "Chemistry 2e, ch. 6"
+    }
+  ],
+
+  "astronomy": [
+    {
+      id: "astro-os-1",
+      difficulty: "Beginner",
+      tags: ["stars", "nuclear fusion"],
+      prompt: "What is the Sun's primary fuel?",
+      options: ["Hydrogen", "Helium", "Carbon", "Uranium"],
+      answer: 0,
+      hint: "The Sun fuses the lightest element into the next one up.",
+      explanation: [
+        "The core fuses hydrogen nuclei into helium through the proton-proton chain.",
+        "Helium is the product of that reaction, not the fuel.",
+        "The Sun has converted only a small fraction of its hydrogen so far."
+      ],
+      source: "openstax",
+      sourceRef: "Astronomy 2e, ch. 16"
+    },
+    {
+      id: "astro-os-2",
+      difficulty: "Intermediate",
+      tags: ["spectra", "stellar atmospheres"],
+      prompt: "Why does a star's spectrum contain dark absorption lines?",
+      options: [
+        "Cooler gas in the outer layers absorbs specific wavelengths",
+        "The core emits only those wavelengths",
+        "Interstellar dust removes all blue light",
+        "The telescope adds them as an artefact"
+      ],
+      answer: 0,
+      hint: "The photosphere radiates a continuous spectrum through the chromosphere.",
+      explanation: [
+        "The hot, dense photosphere emits a continuous spectrum.",
+        "Gas above it is cooler, so its atoms absorb exactly the wavelengths that match their energy levels.",
+        "Those missing wavelengths appear as dark lines and identify the elements present."
+      ],
+      source: "openstax",
+      sourceRef: "Astronomy 2e, ch. 17"
+    },
+    {
+      id: "astro-os-3",
+      difficulty: "Advanced",
+      tags: ["white dwarfs", "degeneracy pressure"],
+      prompt: "What prevents a white dwarf from collapsing under its own gravity?",
+      options: ["Electron degeneracy pressure", "Hydrogen fusion", "Radiation pressure from fission", "Its magnetic field"],
+      answer: 0,
+      hint: "The electrons are packed so tightly that quantum rules resist further compression.",
+      explanation: [
+        "Fusion has stopped, so thermal pressure cannot hold the star up.",
+        "Packing electrons into a tiny volume forces them into higher momentum states.",
+        "That quantum resistance is electron degeneracy pressure, and it supports the white dwarf."
+      ],
+      source: "openstax",
+      sourceRef: "Astronomy 2e, ch. 23"
+    }
+  ],
+
+  "statistics-probability": [
+    {
+      id: "stat-os-1",
+      difficulty: "Beginner",
+      tags: ["probability", "equally likely outcomes"],
+      prompt: "A fair six-sided die is rolled once. What is the probability of an even number?",
+      options: ["$\\frac{1}{2}$", "$\\frac{1}{3}$", "$\\frac{2}{3}$", "$\\frac{1}{6}$"],
+      answer: 0,
+      hint: "Count the even faces out of the six possible faces.",
+      explanation: [
+        "The even faces are $2$, $4$ and $6$, so there are three favourable outcomes.",
+        "All six faces are equally likely.",
+        "$P = \\frac{3}{6} = \\frac{1}{2}$."
+      ],
+      source: "openstax",
+      sourceRef: "Introductory Statistics 2e, ch. 3"
+    },
+    {
+      id: "stat-os-2",
+      difficulty: "Beginner",
+      tags: ["descriptive statistics", "median"],
+      prompt: "What does the median of a data set describe?",
+      options: ["The middle value when the data are ordered", "The most frequent value", "The arithmetic average", "The difference between the largest and smallest values"],
+      answer: 0,
+      hint: "It splits the ordered data into two halves.",
+      explanation: [
+        "Sort the values, then take the middle one, or the mean of the two middle values for an even count.",
+        "The most frequent value is the mode and the average is the mean.",
+        "The range is largest minus smallest."
+      ],
+      source: "openstax",
+      sourceRef: "Introductory Statistics 2e, ch. 2"
+    },
+    {
+      id: "stat-os-3",
+      difficulty: "Intermediate",
+      tags: ["probability", "independence"],
+      prompt: "If $P(A) = 0.3$, $P(B) = 0.4$ and $A$ and $B$ are independent, what is $P(A \\cap B)$?",
+      options: ["$0.12$", "$0.70$", "$0.10$", "$0.58$"],
+      answer: 0,
+      hint: "Independence lets you multiply the probabilities.",
+      explanation: [
+        "For independent events, $P(A \\cap B) = P(A)\\,P(B)$.",
+        "Multiply: $0.3 \\times 0.4 = 0.12$.",
+        "Adding the probabilities would double count and is not the intersection rule."
+      ],
+      source: "openstax",
+      sourceRef: "Introductory Statistics 2e, ch. 3"
+    }
+  ],
+
+  "world-history": [
+    {
+      id: "wh-os-1",
+      difficulty: "Beginner",
+      tags: ["ancient Egypt", "river valleys"],
+      prompt: "Which river valley supported the earliest Egyptian civilisation?",
+      options: ["The Nile", "The Tigris", "The Indus", "The Yellow River"],
+      answer: 0,
+      hint: "Its annual flood deposited the silt that made farming possible.",
+      explanation: [
+        "Egyptian settlements clustered along the Nile because the floodplain renewed fertile soil each year.",
+        "The Tigris and Euphrates belong to Mesopotamia, and the Indus and Yellow River to other civilisations.",
+        "The Nile also served as the main transport route along the kingdom."
+      ],
+      source: "openstax",
+      sourceRef: "World History Volume 1, ch. 3"
+    },
+    {
+      id: "wh-os-2",
+      difficulty: "Intermediate",
+      tags: ["Silk Roads", "trade"],
+      prompt: "What was the main historical significance of the Silk Roads?",
+      options: [
+        "They carried goods, technology and ideas between Asia, the Middle East and Europe",
+        "They were a single road built by one empire",
+        "They were an irrigation system in China",
+        "They connected Europe to the Americas"
+      ],
+      answer: 0,
+      hint: "The network moved far more than silk.",
+      explanation: [
+        "The Silk Roads were a network of overland and maritime routes, not one road.",
+        "Merchants exchanged silk, spices and metals, and with them religions, technologies and diseases.",
+        "That exchange linked East Asia, Central Asia, the Middle East and Europe."
+      ],
+      source: "openstax",
+      sourceRef: "World History Volume 1, ch. 9"
+    },
+    {
+      id: "wh-os-3",
+      difficulty: "Beginner",
+      tags: ["Persian Empire", "Cyrus the Great"],
+      prompt: "Which empire was founded by Cyrus the Great?",
+      options: ["The Achaemenid Persian Empire", "The Roman Empire", "The Mauryan Empire", "The Mongol Empire"],
+      answer: 0,
+      hint: "It was centred on Persia and later fought the Greek city-states.",
+      explanation: [
+        "Cyrus the Great united the Persian tribes and founded the Achaemenid Empire in the sixth century BCE.",
+        "His successors expanded it to Egypt and the borders of Greece.",
+        "The Roman, Mauryan and Mongol empires arose later and in other regions."
+      ],
+      source: "openstax",
+      sourceRef: "World History Volume 1, ch. 6"
+    }
+  ],
+
+  "organic-chemistry": [
+    {
+      id: "org-os-1",
+      difficulty: "Intermediate",
+      tags: ["hybridisation", "alkenes"],
+      prompt: "What is the hybridisation of each carbon atom in ethene ($\\text{C}_2\\text{H}_4$)?",
+      options: ["$sp^2$", "$sp^3$", "$sp$", "$sp^3d$"],
+      answer: 0,
+      hint: "Count the electron domains around each carbon: two hydrogens and one double bond.",
+      explanation: [
+        "Each carbon is bonded to two hydrogens and one other carbon, giving three electron domains.",
+        "Three domains correspond to $sp^2$ hybridisation.",
+        "The remaining $p$ orbital on each carbon forms the $\\pi$ bond of the double bond."
+      ],
+      source: "openstax",
+      sourceRef: "Organic Chemistry, ch. 1"
+    },
+    {
+      id: "org-os-2",
+      difficulty: "Beginner",
+      tags: ["functional groups", "carboxylic acids"],
+      prompt: "Which functional group defines a carboxylic acid?",
+      options: ["$-\\text{COOH}$", "$-\\text{OH}$", "$-\\text{CHO}$", "$-\\text{NH}_2$"],
+      answer: 0,
+      hint: "It combines a carbonyl and a hydroxyl on the same carbon.",
+      explanation: [
+        "A carboxyl group is a carbonyl ($C{=}O$) and a hydroxyl ($-OH$) on one carbon.",
+        "That combination is acidic because the $O{-}H$ bond can lose a proton.",
+        "$-\\text{OH}$ alone is an alcohol and $-\\text{CHO}$ an aldehyde."
+      ],
+      source: "openstax",
+      sourceRef: "Organic Chemistry, ch. 3"
+    },
+    {
+      id: "org-os-3",
+      difficulty: "Beginner",
+      tags: ["alkanes", "nomenclature"],
+      prompt: "How many carbon atoms does butane contain?",
+      options: ["$4$", "$3$", "$5$", "$2$"],
+      answer: 0,
+      hint: "The prefix \"but-\" gives the count.",
+      explanation: [
+        "Alkane prefixes run meth-, eth-, prop-, but-, pent- for one to five carbons.",
+        "\"But-\" is the fourth prefix in that series.",
+        "Butane therefore has four carbon atoms, $\\text{C}_4\\text{H}_{10}$."
+      ],
+      source: "openstax",
+      sourceRef: "Organic Chemistry, ch. 3"
     }
   ]
 };
