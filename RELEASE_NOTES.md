@@ -1,3 +1,16 @@
+# Questionaire 0.7.3-alpha — Mixed-version merge and emulator CI
+
+Released 21 November 2026.
+
+## Fixed
+
+- **Answer records from a 0.7.1 device were ignored.** Chunking moved every per-item record out of the main document, but `loadProgress` returned only the chunk contents, so a device still on 0.7.1 writing inline `progress.answered` into the same document had its answers dropped. Loading now unions inline records with the chunk records (highest attempts and correct count, earliest first-correct stamp, latest attempt), and the next save folds them into the chunks and deletes the inline map so the two copies cannot drift apart.
+
+## Tests
+
+- `tests/emulator.py` gains the mixed-version case: an inline record with higher counts is written into a chunked document, the app reloads, and the record must survive inside the chunks while the inline field disappears.
+- The emulator suite runs in CI as its own `emulator` job: Node 22, Temurin JDK 17, Auth and Firestore emulators started from `firebase.json`, then `tests/emulator.py` against a locally served site. The smoke job is unchanged.
+
 # Questionaire 0.7.2-alpha — Emulator-verified sync and a bounded document
 
 Released 21 November 2026.

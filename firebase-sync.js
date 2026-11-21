@@ -422,6 +422,19 @@
     return sdk.firestore.doc(db, "users", uid, "items", "chunk-" + index);
   }
 
+  /* Same rule the app's merge uses for a question: highest counts, first
+     correct stamp, latest attempt. */
+  function mergeItemRecord(left, right) {
+    if (!left) return right;
+    if (!right) return left;
+    return {
+      attempts: Math.max(Number(left.attempts) || 0, Number(right.attempts) || 0),
+      correct: Math.max(Number(left.correct) || 0, Number(right.correct) || 0),
+      firstCorrect: [left.firstCorrect, right.firstCorrect].filter(Boolean).sort()[0] || null,
+      last: [left.last, right.last].filter(Boolean).sort().pop() || null
+    };
+  }
+
   async function loadProgress() {
     if (!CONFIGURED || !db || !auth || !auth.currentUser) return null;
     const uid = auth.currentUser.uid;
@@ -440,7 +453,11 @@
             return sdk.firestore.getDoc(itemDoc(uid, index)).catch(function () { return null; });
           })
         );
+        /* A device still on 0.7.1 writes answer records inline. Union them with
+           the chunk documents so a mixed-version account loses nothing. */
         const answered = {};
+        const inline = progress.answered && typeof progress.answered === "object" ? progress.answered : {};
+        Object.keys(inline).forEach(function (key) { answered[key] = inline[key]; });
         const bodies = [];
         snapshots.forEach(function (snapshot, index) {
           const body = snapshot && snapshot.exists() ? String((snapshot.data() || {}).body || "") : "";
@@ -449,7 +466,9 @@
           try {
             const parsed = JSON.parse(body);
             if (parsed && typeof parsed === "object") {
-              Object.keys(parsed).forEach(function (key) { answered[key] = parsed[key]; });
+              Object.keys(parsed).forEach(function (key) {
+                answered[key] = mergeItemRecord(answered[key], parsed[key]);
+              });
             }
           } catch (parseError) {
             /* One damaged chunk must not lose the rest of the profile. */
@@ -492,6 +511,9 @@
       core.itemChunks = bodies.length;
       core.itemCount = Object.keys(answered).length;
       const bounded = fitCore(core);
+      /* Clear inline records an older client may still have written; every
+         answer record now lives in a chunk document. */
+      bounded.answered = sdk.firestore.deleteField();
 
       const previous = chunkCache && chunkCache.uid === uid ? chunkCache.bodies : [];
       const batch = sdk.firestore.writeBatch(db);

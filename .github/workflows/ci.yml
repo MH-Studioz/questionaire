@@ -35,3 +35,66 @@ jobs:
         env:
           BASE_URL: http://127.0.0.1:4173
         run: python tests/smoke.py
+
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The Firestore emulator requires Java 11 or newer; 17 is the supported LTS.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Playwright and firebase-tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+          npm install --global firebase-tools@13
+          firebase --version
+          java -version
+
+      - name: Start Auth and Firestore emulators
+        run: |
+          firebase emulators:start --only auth,firestore \
+            --project questionaire-emulator --config firebase.json \
+            > /tmp/emulators.log 2>&1 &
+          for attempt in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:8080/ >/dev/null && curl -sf http://127.0.0.1:9099/ >/dev/null; then
+              echo "emulators ready after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "emulators did not start" >&2
+          tail -n 40 /tmp/emulators.log >&2
+          exit 1
+
+      - name: Serve the static site
+        run: |
+          python -m http.server 4173 --bind 127.0.0.1 &
+          for attempt in $(seq 1 20); do
+            curl -sf http://127.0.0.1:4173/index.html >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:4173/index.html >/dev/null
+
+      - name: Run Firestore emulator suite
+        env:
+          BASE_URL: http://127.0.0.1:4173
+        run: python tests/emulator.py
+
+      - name: Emulator log
+        if: failure()
+        run: tail -n 60 /tmp/emulators.log

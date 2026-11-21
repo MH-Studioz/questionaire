@@ -478,11 +478,51 @@ def main():
                 )
                 page_c.wait_for_timeout(4000)
                 after = progress_of(firestore_doc(uid_c) or {})
-                restored = after.get("answered", {})
+                restored = read_answered(uid_c)
                 if int(after.get("itemChunks") or 0) < 2 or legacy_ids[0] not in restored:
                     fail("legacy inline profile was not merged and re-chunked")
                 else:
                     ok("legacy inline profile loads and is re-chunked (%d chunks)" % after.get("itemChunks"))
+
+        # ------------------------------------------------- mixed version clients
+            # A 0.7.1 client still writes answer records inline. Loading must
+            # union them with the chunks and fold them in on the next save.
+            mixed_id = ids[-3]
+            mixed_answer = {
+                mixed_id: {"mapValue": {"fields": {
+                    "attempts": {"integerValue": "50"},
+                    "correct": {"integerValue": "40"},
+                    "firstCorrect": {"stringValue": "2026-01-02T03:04:05.000Z"},
+                }}}
+            }
+            status, _ = request_json(
+                doc_url(uid_c) + "?updateMask.fieldPaths=progress.answered",
+                method="PATCH",
+                body={"fields": {"progress": {"mapValue": {"fields": {
+                    "answered": {"mapValue": {"fields": mixed_answer}},
+                }}}}},
+            )
+            if status != 200:
+                fail("could not simulate an inline write from a 0.7.1 client (%d)" % status)
+            else:
+                page_c.reload(wait_until="load")
+                page_c.wait_for_function(
+                    "window.QuestionaireCloud && window.QuestionaireCloud.configured", timeout=20000
+                )
+                deadline = time.time() + 30
+                stored_mixed = None
+                while time.time() < deadline:
+                    stored_mixed = progress_of(firestore_doc(uid_c) or {})
+                    if "answered" not in stored_mixed and int(stored_mixed.get("itemCount") or 0) >= 13760:
+                        break
+                    time.sleep(0.5)
+                record = read_answered(uid_c).get(mixed_id, {})
+                if int(record.get("attempts") or 0) < 50:
+                    fail("inline 0.7.1 answer record was lost (attempts=%r)" % record.get("attempts"))
+                elif stored_mixed is not None and "answered" in stored_mixed:
+                    fail("inline answer records were not folded into the chunks")
+                else:
+                    ok("mixed-version inline records union into the chunks and are cleared")
 
         # ------------------------------------- oversized main-document guard
         context_d, page_d = open_app(browser)

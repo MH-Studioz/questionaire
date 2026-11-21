@@ -33,6 +33,12 @@ git push origin main
 
 Cloud login only works after the public Firebase config is filled in and the providers are enabled. See [Firebase setup](#firebase-setup).
 
+## Release 0.7.3-alpha
+
+**0.7.3-alpha** closes the mixed-version gap 0.7.2 left behind. A device still on 0.7.1 writes answer records inline in the main document; 0.7.2 loaded only the chunk documents, so those records were ignored. `loadProgress` now unions the inline records with the chunk records one question at a time (highest attempt and correct counts, earliest first-correct stamp, latest attempt) and the next save folds them into the chunks and deletes the inline map.
+
+`tests/emulator.py` covers the case: it writes an inline record with higher counts into a chunked document, reloads the app and asserts the record survives inside the chunks with the inline field gone. The emulator suite now also runs in CI as its own job, with Node 22 and Temurin JDK 17, starting the Auth and Firestore emulators from `firebase.json` before running `tests/emulator.py`.
+
 ## Release 0.7.2-alpha
 
 **0.7.2-alpha** is the first release checked against a real Firestore emulator. `tests/emulator.py` drives the app in Chromium with the Auth and Firestore emulators and asserts the merge, the two-device sitting and the document sizes with the production profile shape (13,760-question catalogue, 60 saved sittings).
@@ -258,7 +264,7 @@ firebase emulators:start --only auth,firestore --project questionaire-emulator
 python tests/emulator.py          # BASE_URL defaults to http://127.0.0.1:5173
 ```
 
-The suite intercepts `firebase-config.js` in the browser and answers with an emulator config, so the committed config stays blank. `firebase-sync.js` only connects to an emulator when the config carries `emulator: { host, authPort, firestorePort }`.
+The suite intercepts `firebase-config.js` in the browser and answers with an emulator config, so the committed config stays blank. `firebase-sync.js` only connects to an emulator when the config carries `emulator: { host, authPort, firestorePort }`. The `emulator` job in `.github/workflows/ci.yml` runs the same suite on every push and pull request.
 
 The emulator rejects a single oversized value but does not enforce the 1 MiB document limit, which is why the client keeps the main document under 900 KiB on its own.
 
