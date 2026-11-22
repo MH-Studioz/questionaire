@@ -33,6 +33,16 @@ git push origin main
 
 Cloud login only works after the public Firebase config is filled in and the providers are enabled. See [Firebase setup](#firebase-setup).
 
+## Release 0.7.5-alpha
+
+**0.7.5-alpha** takes the tie-breaker for a tombstone conflict away from the device clock. A decision is now stamped with a Firestore server timestamp in `stamp`, and the merge compares that; a device whose clock is hours out can no longer win a merge it should lose. `progress.tombstones` keeps its `{ at, deleted }` shape, so a client still on 0.7.4 reads and writes the same map and simply ignores the extra field.
+
+Only a decision that actually changed on the device gets a fresh server timestamp. Re-stamping the whole map on every save would push an old deletion past an add another device made later, which is the bug the tombstones exist to prevent. The committed stamp is read back once the write lands — one document read, only on saves that carry a new decision — so the next save writes the stamp it was given instead of erasing it with a bare local time. Records written before this release keep ordering by `at` until that decision changes; a legacy entry has no server stamp to compare.
+
+Unifying the comparison also exposed a unit bug: a paused sitting's `savedAt` is epoch milliseconds, and it was being compared as a string against an ISO timestamp, so the string always won. Every `st:` tombstone therefore blocked that paper from ever being resumed. Both sides are normalised to ISO before comparing now.
+
+`tests/emulator.py` covers it: a committed decision must carry a `timestampValue` stamp and a `stringValue` `at`; a later save must not erase that stamp; a legacy tombstone dated in 2039 with a 2020 stamp must lose to the device's newer server stamp; and a tombstone dated 2020 with a 2039 stamp must beat the device's own clock.
+
 ## Release 0.7.4-alpha
 
 **0.7.4-alpha** fixes the two sync defects that survived the last round: deletions came back, and a failed save looked exactly like a successful one.

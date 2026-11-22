@@ -8,7 +8,7 @@
    Bump CACHE whenever app files ship; the old cache is deleted on activate.
    ========================================================================== */
 
-const CACHE = "questionaire-shell-0.7.4-alpha-r2";
+const CACHE = "questionaire-shell-0.7.5-alpha-r1";
 
 const SHELL = [
   "./",

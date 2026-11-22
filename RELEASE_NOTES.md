@@ -1,3 +1,21 @@
+# Questionaire 0.7.5-alpha — Server-stamped decisions
+
+Released 22 November 2026.
+
+## Fixed
+
+- **Tombstone conflicts were ordered by the device clock.** Every decision carried `new Date().toISOString()`, so a device set hours fast or slow could win a merge it should lose: a wrong-clock delete could outlive a real re-add, or a stale copy could beat a fresh deletion. A decision now carries `stamp`, a Firestore server timestamp written on the save that commits it, and the merge compares that. `progress.tombstones` keeps its `{ at, deleted }` shape for clients still on 0.7.4, which ignore the extra field.
+- **Only changed decisions are stamped.** Stamping the whole map on every save would move an old deletion forward in time and let it beat an add another device made later, so confirmed decisions are written back with the stamp they already have. Those stamps are read back from the document after the write (one read, only on saves that carry a new decision) so a later save cannot erase them with a bare local time.
+- **A discarded paper could never be resumed again.** `st:` tombstones are compared against a sitting's `savedAt`, which is epoch milliseconds, while the tombstone was an ISO string; the string always sorted higher, so any discard blocked that subject-and-paper permanently. Both sides are converted to ISO before comparing.
+
+## Compatibility
+
+- Records written before this release have no `stamp` and keep ordering by `at` until that decision changes; a device on 0.7.4 writing the old shape erases the stamps for the keys it touches, which degrades those keys to clock ordering until the next release writes them again.
+
+## Tests
+
+- `tests/emulator.py` gains `check_server_stamps`: a committed decision must store a `timestampValue` stamp alongside the `stringValue` `at`, a later save must preserve the earlier stamp, a tombstone dated 2039 with a 2020 stamp must lose to the device's newer server stamp, and one dated 2020 with a 2039 stamp must beat this device's clock.
+
 # Questionaire 0.7.4-alpha — Deletions that stick and a sync you can see
 
 Released 21 November 2026.

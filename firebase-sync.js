@@ -496,6 +496,86 @@
     };
   }
 
+  /* Decision stamps are Firestore server timestamps, so a device with a wrong
+     clock cannot reorder a merge. The map keeps the shape an older client
+     reads — `at` (ISO string) and `deleted` — and adds `stamp` for the server
+     value, plus a local-only `pending` flag until the write lands. */
+  function timestampToIso(value) {
+    if (!value) return "";
+    if (typeof value === "string") return value;
+    if (typeof value.toDate === "function") return value.toDate().toISOString();
+    return "";
+  }
+
+  function normalizeTombstones(progress) {
+    const map = progress && progress.tombstones;
+    if (!map || typeof map !== "object") return;
+    Object.keys(map).forEach(function (key) {
+      const entry = map[key];
+      if (!entry || typeof entry !== "object") {
+        delete map[key];
+        return;
+      }
+      const stamp = timestampToIso(entry.stamp);
+      if (stamp) entry.stamp = stamp;
+      else delete entry.stamp;
+      if (!entry.at) entry.at = stamp;
+      delete entry.pending;
+    });
+  }
+
+  /* Only a decision that changed on this device gets a server timestamp. A
+     blanket re-stamp would push an old deletion past a newer add the other
+     device made, so confirmed decisions are written back with the stamp they
+     already carry. */
+  function tombstonePayload(map) {
+    const payload = {};
+    let pending = false;
+    const source = map && typeof map === "object" ? map : {};
+    Object.keys(source).forEach(function (key) {
+      const entry = source[key];
+      if (!entry || typeof entry !== "object") return;
+      const at = String(entry.at || entry.stamp || "");
+      if (!at) return;
+      const value = { at: at, deleted: Boolean(entry.deleted) };
+      if (entry.pending) {
+        value.stamp = sdk.firestore.serverTimestamp();
+        pending = true;
+      } else if (entry.stamp) {
+        const date = new Date(entry.stamp);
+        value.stamp = isNaN(date.getTime()) ? entry.stamp : sdk.firestore.Timestamp.fromDate(date);
+      }
+      payload[key] = value;
+    });
+    return { payload: payload, pending: pending };
+  }
+
+  /* The server stamp is only known once the write lands. Without reading it
+     back, the next save would rewrite the map with a bare local `at` and lose
+     the server's ordering, so it is folded into the record this device holds. */
+  async function adoptServerStamps(uid, progress) {
+    try {
+      const snapshot = await sdk.firestore.getDoc(sdk.firestore.doc(db, "users", uid));
+      const data = snapshot.exists() ? snapshot.data() : null;
+      const remote = data && data.progress ? data.progress.tombstones : null;
+      const local = progress && progress.tombstones;
+      if (!remote || !local) return;
+      Object.keys(local).forEach(function (key) {
+        const mine = local[key];
+        const theirs = remote[key];
+        if (!mine || !theirs || typeof theirs !== "object") return;
+        /* A concurrent decision from another device must not relabel this one. */
+        if (Boolean(theirs.deleted) !== Boolean(mine.deleted)) return;
+        const stamp = timestampToIso(theirs.stamp);
+        if (!stamp) return;
+        mine.stamp = stamp;
+        delete mine.pending;
+      });
+    } catch (stampError) {
+      /* The stamp is picked up by the next load instead. */
+    }
+  }
+
   async function loadProgress() {
     if (!CONFIGURED || !db || !auth || !auth.currentUser) return null;
     const uid = auth.currentUser.uid;
@@ -543,6 +623,7 @@
         chunkCache = { uid: uid, bodies: [] };
       }
 
+      normalizeTombstones(progress);
       delete progress.itemChunks;
       delete progress.itemCount;
       delete progress.itemsTruncated;
@@ -565,9 +646,11 @@
     try {
       const core = {};
       Object.keys(progress || {}).forEach(function (key) {
-        if (key === "answered") return;
+        if (key === "answered" || key === "tombstones") return;
         core[key] = progress[key];
       });
+      const decisions = tombstonePayload(progress && progress.tombstones);
+      core.tombstones = decisions.payload;
 
       const answered = (progress && progress.answered) || {};
       const bodies = chunkItems(answered);
@@ -607,6 +690,8 @@
       if (state.status === "error") state.status = "signed-in";
       noteSynced(bounded.syncTrimmed);
       publish();
+      /* Awaited so the caller sees a record that already holds the stamps. */
+      if (decisions.pending) await adoptServerStamps(uid, progress);
       return true;
     } catch (saveError) {
       noteSyncFailure(saveError);

@@ -17,7 +17,7 @@
      Constants
      -------------------------------------------------------------------------- */
 
-  const APP_VERSION = "0.7.4-alpha";
+  const APP_VERSION = "0.7.5-alpha";
   const STORAGE_KEY = "questionaire.progress.v1";
   const ACCOUNTS_KEY = "questionaire.accounts.v1";
   const THEME_KEY = "questionaire.theme";
@@ -396,9 +396,12 @@
 
   /* A union merge cannot tell "never had it" from "deleted it", so every
      deletion leaves a timestamped tombstone and the merge keeps the most
-     recent decision for each key. Re-adding an item writes an "alive" entry
-     with a later stamp, which is what lets a re-bookmark survive a merge with
-     the device that deleted it. Keys are prefixed by kind:
+     recent decision for each key. Re-adding an item writes an "alive" entry,
+     which is what lets a re-bookmark survive a merge with the device that
+     deleted it. The ordering stamp is the Firestore server timestamp of the
+     save that committed the decision (`stamp`, ISO once read back); `at` keeps
+     the local string shape an older client still compares. Keys are prefixed
+     by kind:
        bm:<questionId>  bookmark
        mk:<questionId>  mistake
        co:<questionId>  later corrected
@@ -411,11 +414,28 @@
     Object.keys(value).forEach(function (key) {
       const entry = value[key];
       if (!entry || typeof entry !== "object") return;
-      const at = String(entry.at || "");
+      const stamp = typeof entry.stamp === "string" ? entry.stamp : "";
+      const at = String(entry.at || stamp || "");
       if (!at) return;
-      map[key] = { at: at, deleted: Boolean(entry.deleted) };
+      const copy = { at: at, deleted: Boolean(entry.deleted) };
+      if (stamp) copy.stamp = stamp;
+      if (entry.pending) copy.pending = true;
+      map[key] = copy;
     });
     return map;
+  }
+
+  /* A decision is ordered by the server stamp of the save that committed it.
+     `at` is only the fallback: records written before server stamps, and the
+     entries a client on the old shape still writes. */
+  function decisionTime(entry) {
+    if (!entry) return "";
+    return String(entry.stamp || entry.at || "");
+  }
+
+  function isoStamp(value) {
+    if (typeof value === "number") return new Date(value).toISOString();
+    return String(value || "");
   }
 
   function pruneTombstones(map) {
@@ -443,7 +463,7 @@
   function recordRemoval(kind, id) {
     if (!id) return;
     const map = ensureTombstones();
-    map[kind + ":" + id] = { at: new Date().toISOString(), deleted: true };
+    map[kind + ":" + id] = { at: new Date().toISOString(), deleted: true, pending: true };
     pruneTombstones(map);
   }
 
@@ -456,17 +476,18 @@
     const key = kind + ":" + id;
     const entry = map[key];
     if (entry && !entry.deleted) return;
-    map[key] = { at: new Date().toISOString(), deleted: false };
+    map[key] = { at: new Date().toISOString(), deleted: false, pending: true };
     pruneTombstones(map);
   }
 
   /* True when the latest decision on this key is a deletion newer than the
-     item's own stamp (a corrected stamp or a sitting's savedAt). */
+     item's own stamp. `at` may be an ISO string (a corrected stamp) or epoch
+     milliseconds (a sitting's savedAt), so it is normalised first. */
   function tombstoneRemoved(tombstones, kind, id, at) {
     const entry = tombstones && tombstones[kind + ":" + id];
     if (!entry || !entry.deleted) return false;
     if (!at) return true;
-    return String(entry.at) >= String(at);
+    return decisionTime(entry) >= isoStamp(at);
   }
 
   function mergeTombstones(left, right) {
@@ -474,8 +495,25 @@
     [left, right].forEach(function (source) {
       const map = tombstoneMap(source);
       Object.keys(map).forEach(function (key) {
+        const incoming = map[key];
         const current = merged[key];
-        if (!current || String(map[key].at) > String(current.at)) merged[key] = map[key];
+        if (!current) {
+          merged[key] = incoming;
+          return;
+        }
+        if (current.deleted === incoming.deleted) {
+          /* Same decision on both sides, so only the stamp is in question:
+             keep the newer one and adopt a server stamp when either has it. */
+          const newer = decisionTime(incoming) > decisionTime(current) ? incoming : current;
+          const older = newer === incoming ? current : incoming;
+          const entry = { at: newer.at, deleted: newer.deleted };
+          const stamp = newer.stamp || older.stamp;
+          if (stamp) entry.stamp = stamp;
+          else if (newer.pending || older.pending) entry.pending = true;
+          merged[key] = entry;
+          return;
+        }
+        merged[key] = decisionTime(incoming) > decisionTime(current) ? incoming : current;
       });
     });
     return pruneTombstones(merged);
@@ -675,9 +713,16 @@
     window.clearTimeout(cloudSaveTimer);
     cloudSaveTimer = window.setTimeout(function () {
       if (!cloud || !cloudState.user || cloudHydrating) return;
-      cloud.saveProgress(progress).catch(function () {
-        /* The local record is still authoritative; the next answer retries. */
-      });
+      cloud
+        .saveProgress(progress)
+        .then(function (saved) {
+          /* The cloud layer folds the server stamps of new decisions back into
+             this record, so the local copy is kept in step with it. */
+          if (saved) persistLocal();
+        })
+        .catch(function () {
+          /* The local record is still authoritative; the next answer retries. */
+        });
     }, 700);
   }
 

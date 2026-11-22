@@ -10,6 +10,7 @@ with the production profile shape, and checks:
   * the client-side budget for an oversized main document
   * tombstones: a deletion on one device beats a stale copy on another
   * a refused save showing on the account card and recovering on its own
+  * decision stamps coming from Firestore instead of the device clock
   * rules denying another account's documents
 
 Requires the emulators on 127.0.0.1:9099 / :8080 and the app served on
@@ -25,6 +26,7 @@ import time
 import urllib.error
 import urllib.request
 from contextlib import contextmanager
+from datetime import datetime
 
 from playwright.sync_api import sync_playwright
 
@@ -49,6 +51,7 @@ EMAIL_C = "size-" + RUN + "@example.test"
 EMAIL_D = "heavy-" + RUN + "@example.test"
 EMAIL_T = "tombstone-" + RUN + "@example.test"
 EMAIL_S = "sync-failure-" + RUN + "@example.test"
+EMAIL_S2 = "stamp-" + RUN + "@example.test"
 
 failures = []
 
@@ -148,10 +151,27 @@ def as_str(value):
     return {"stringValue": value}
 
 
+def as_bool(value):
+    return {"booleanValue": bool(value)}
+
+
+def as_ts(value):
+    return {"timestampValue": value}
+
+
+def tombstone_value(uid, key):
+    """The raw Firestore value of one decision, so its field types stay visible."""
+    progress = fields_of(firestore_doc(uid) or {}).get("progress", {})
+    tombstones = progress.get("mapValue", {}).get("fields", {}).get("tombstones", {})
+    entry = tombstones.get("mapValue", {}).get("fields", {}).get(key) or {}
+    return entry.get("mapValue", {}).get("fields", {})
+
+
 def patch_fields(uid, fields, mask, token="owner"):
     """PATCH selected field paths on a user document, as the emulator admin."""
+    paths = "&updateMask.fieldPaths=".join(part.strip() for part in mask.split(","))
     return request_json(
-        doc_url(uid) + "?updateMask.fieldPaths=" + mask,
+        doc_url(uid) + "?updateMask.fieldPaths=" + paths,
         method="PATCH",
         body={"fields": fields},
         token=token,
@@ -232,6 +252,10 @@ def id_token(email, password):
 # ---------------------------------------------------------------------------
 # Waiting
 # ---------------------------------------------------------------------------
+
+
+def parse_timestamp(value):
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
 
 
 def wait_until(probe, timeout=40, interval=0.25):
@@ -821,6 +845,127 @@ def check_tombstones(browser, ids):
                 )
 
 
+def check_server_stamps(browser, ids):
+    """Decisions are ordered by Firestore server stamps, not device clocks.
+
+    The map keeps the old `at`/`deleted` shape a 0.7.4 client reads, but the
+    merge compares `stamp`. A legacy tombstone dated in the future — what a
+    device with a broken clock writes — must lose to the newer server stamp,
+    and a newer server stamp must beat this device's own clock.
+    """
+    profile = build_profile(ids, "A", answered_count=10, attempt_count=1, saved_at=SAVED_A)
+    with device(browser, profile, EMAIL_S2, "Server stamps") as (page, uid):
+        check(bool(wait_for_doc(uid, has_progress)), "stamp device saved its profile")
+
+        page.goto(BASE_URL + "/index.html#/subject/biology/practice", wait_until="load")
+        page.wait_for_selector('[data-action="bookmark"]', timeout=20000)
+        starred = page.eval_on_selector(
+            '[data-action="bookmark"]', "element => element.getAttribute('data-qid')"
+        )
+        page.click('[data-action="bookmark"]')
+        key = "bm:" + starred
+
+        check(
+            bool(wait_until(lambda: "stamp" in tombstone_value(uid, key), timeout=45)),
+            "the committed decision carries a stamp",
+        )
+        fields = tombstone_value(uid, key)
+        check("timestampValue" in fields.get("stamp", {}), "the stamp is a Firestore server timestamp")
+        check("stringValue" in fields.get("at", {}), "the legacy at string is still written")
+
+        cache_key = "questionaire.progress.v1.cloud." + uid
+
+        def stored():
+            return json.loads(page.evaluate("key => localStorage.getItem(key)", cache_key) or "{}")
+
+        def adopted():
+            entry = (stored().get("tombstones") or {}).get(key) or {}
+            return entry if entry.get("stamp") and not entry.get("pending") else None
+
+        # The stamp the server assigned has to land in the record this device
+        # keeps; without it the next save rewrites the decision with a bare
+        # local time and loses the ordering.
+        check(bool(wait_until(adopted, timeout=30)), "the device keeps the server stamp it was given")
+        decision = bool((adopted() or {}).get("deleted"))
+        stamp_before = tombstone_value(uid, key).get("stamp", {}).get("timestampValue") or ""
+
+        # A second decision rewrites the whole map: the first stamp must keep
+        # its place rather than being re-stamped or dropped.
+        time.sleep(2)
+        page.goto(BASE_URL + "/index.html#/subject/chemistry/practice", wait_until="load")
+        page.wait_for_selector('[data-action="bookmark"]', timeout=20000)
+        second = page.eval_on_selector(
+            '[data-action="bookmark"]', "element => element.getAttribute('data-qid')"
+        )
+        page.click('[data-action="bookmark"]')
+        check(
+            bool(wait_until(lambda: "stamp" in tombstone_value(uid, "bm:" + second), timeout=45)),
+            "a later decision is stamped too",
+        )
+        stamp_after = tombstone_value(uid, key).get("stamp", {}).get("timestampValue") or ""
+        check(
+            bool(stamp_before and stamp_after)
+            and abs(parse_timestamp(stamp_after) - parse_timestamp(stamp_before)) < 0.5,
+            "the earlier server stamp keeps its place in a later save",
+        )
+
+        def bookmarked():
+            return key[3:] in (progress_snapshot(uid).get("bookmarks") or [])
+
+        def patch_opposite(at_iso, stamp_iso, expect_present):
+            """Write the opposite decision with a hand-made clock and stamp.
+
+            The document's bookmark list is written against the expected
+            outcome, so the check cannot pass before the app rewrites it.
+            """
+            values = [] if expect_present else [as_str(key[3:])]
+            status, _ = patch_fields(
+                uid,
+                {
+                    "progress": as_map(
+                        {
+                            "bookmarks": {"arrayValue": {"values": values}},
+                            "tombstones": as_map(
+                                {
+                                    key: as_map(
+                                        {
+                                            "at": as_str(at_iso),
+                                            "deleted": as_bool(not decision),
+                                            "stamp": as_ts(stamp_iso),
+                                        }
+                                    )
+                                }
+                            ),
+                        }
+                    )
+                },
+                "progress.bookmarks,progress.tombstones",
+            )
+            return status
+
+        # A device clock far in the future must not outrank the server stamp.
+        expect = not decision
+        status = patch_opposite("2039-01-01T00:00:00.000Z", "2020-01-01T00:00:00Z", expect)
+        check(status == 200, "a contradictory decision dated in the future is written (%d)" % status)
+        page.reload(wait_until="load")
+        wait_for_boot(page)
+        check(
+            bool(wait_until(lambda: bookmarked() == expect, timeout=60)),
+            "a server stamp outranks a tombstone dated in the future",
+        )
+
+        # A newer server stamp must still win when this device's clock is ahead.
+        expect = decision
+        status = patch_opposite("2020-01-01T00:00:00.000Z", "2039-01-01T00:00:00Z", expect)
+        check(status == 200, "a contradictory decision dated in the past is written (%d)" % status)
+        page.reload(wait_until="load")
+        wait_for_boot(page)
+        check(
+            bool(wait_until(lambda: bookmarked() == expect, timeout=60)),
+            "a newer server stamp beats this device's clock",
+        )
+
+
 def check_sync_failure(browser, ids):
     """A refused save must surface on the account card and recover by itself.
 
@@ -921,6 +1066,7 @@ def main():
             check_oversize_guard(browser, ids)
             check_tombstones(browser, ids)
             check_sync_failure(browser, ids)
+            check_server_stamps(browser, ids)
             if uid:
                 check_rules(uid)
             else:
@@ -932,8 +1078,8 @@ def main():
         print("\n%d emulator checks failed" % len(failures))
         sys.exit(1)
     print(
-        "\nOK: emulator merge, two-device sitting, size, tombstone, "
-        "sync failure and rules checks passed"
+        "\nOK: emulator merge, two-device sitting, size, tombstone, sync "
+        "failure, server stamp and rules checks passed"
     )
 
 
