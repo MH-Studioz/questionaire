@@ -43,7 +43,7 @@ Cloud login only works after the public Firebase config is filled in and the pro
 
 **More attributed questions.** `open-bank.js` grows from 15 to 42 drills against the open education sources in `sources.js`: three more each for calculus, precalculus and trigonometry, algebra and geometry, biology and chemistry, plus three each for astronomy, statistics and probability, world history and organic chemistry — 27 new items on new topics such as the chain rule, optimisation, geometric sequences, mitosis, enzymes, Mendelian ratios, stoichiometry, Boyle's law, absorption spectra, white dwarfs, independence, the Silk Roads and hybridisation.
 
-`tests/emulator.py` covers both sync fixes: device B clears every star and discards the paused sitting, device A reloads with both still in memory, and neither may come back; re-starring afterwards must be recorded as alive rather than deleted.
+`tests/emulator.py` covers both sync fixes: device B clears every star and discards the paused sitting, device A reloads with both still in memory, and neither may come back; re-starring afterwards must be recorded as alive rather than deleted. A third check denies writes at the emulator: the account card has to read *Not synced — … Retrying automatically* while the session stays signed in, and restoring the rules must be enough for the built-in backoff to clear it and land the save.
 
 ## Release 0.7.3-alpha
 

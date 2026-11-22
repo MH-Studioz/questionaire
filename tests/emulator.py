@@ -9,6 +9,7 @@ with the production profile shape, and checks:
   * a legacy inline-only profile and a mixed 0.7.1/0.7.2 profile
   * the client-side budget for an oversized main document
   * tombstones: a deletion on one device beats a stale copy on another
+  * a refused save showing on the account card and recovering on its own
   * rules denying another account's documents
 
 Requires the emulators on 127.0.0.1:9099 / :8080 and the app served on
@@ -47,6 +48,7 @@ EMAIL_A = "device-a-" + RUN + "@example.test"
 EMAIL_C = "size-" + RUN + "@example.test"
 EMAIL_D = "heavy-" + RUN + "@example.test"
 EMAIL_T = "tombstone-" + RUN + "@example.test"
+EMAIL_S = "sync-failure-" + RUN + "@example.test"
 
 failures = []
 
@@ -83,6 +85,43 @@ def request_json(url, method="GET", body=None, token="owner"):
             return response.status, json.loads(response.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as error:
         return error.code, json.loads(error.read().decode("utf-8") or "{}")
+
+
+RULES_URL = FIRESTORE + "/emulator/v1/projects/" + PROJECT + ":securityRules"
+RULES_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "firestore.rules"
+)
+# Denies writes while leaving reads intact, so a signed-in device keeps working.
+DENY_WRITES = """rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}
+"""
+
+
+def set_rules(content):
+    """Swap the emulator's Firestore rules at runtime."""
+    body = json.dumps(
+        {"rules": {"files": [{"name": "firestore.rules", "content": content}]}}
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        RULES_URL, data=body, headers={"Content-Type": "application/json"}, method="PUT"
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return response.status == 200
+    except urllib.error.HTTPError:
+        return False
+
+
+def local_rules():
+    with open(RULES_PATH, encoding="utf-8") as handle:
+        return handle.read()
 
 
 def doc_url(uid, chunk=None):
@@ -782,6 +821,78 @@ def check_tombstones(browser, ids):
                 )
 
 
+def check_sync_failure(browser, ids):
+    """A refused save must surface on the account card and recover by itself.
+
+    Writes are denied at the emulator and a star is saved: the card has to say
+    the sync failed without losing the session. Restoring the rules is then the
+    only thing that changes, so the built-in backoff retry has to clear it.
+    """
+    profile = build_profile(ids, "A", answered_count=20, attempt_count=1, saved_at=SAVED_A)
+    with device(browser, profile, EMAIL_S, "Sync failure") as (page, uid):
+        check(bool(wait_for_doc(uid, has_progress)), "failure device saved its profile")
+        page.wait_for_selector("#account-panel", timeout=20000)
+
+        restored = local_rules()
+        try:
+            check(set_rules(DENY_WRITES), "the emulator refuses writes")
+            time.sleep(1)
+            page.goto(BASE_URL + "/index.html#/subject/biology/practice", wait_until="load")
+            page.wait_for_selector('[data-action="bookmark"]', timeout=20000)
+            page.click('[data-action="bookmark"]')
+
+            check(
+                bool(wait_until(lambda: page.evaluate("window.QuestionaireCloud.state.syncError"), timeout=40)),
+                "a refused save reports a sync error",
+            )
+            card = page.inner_text("#account-panel").lower()
+            check("not synced" in card, "the account card says it is not synced")
+            check(
+                "retrying automatically" in card,
+                "the account card promises the automatic retry",
+            )
+            check(
+                "cloud sync failed" in page.inner_text("#sidebar-note").lower(),
+                "the sidebar marks the sync as failing",
+            )
+            check(
+                page.evaluate("window.QuestionaireCloud.state.status") == "signed-in",
+                "a failed save leaves the account signed in",
+            )
+            check(
+                page.evaluate("window.QuestionaireCloud.state.lastSyncedAt") is not None,
+                "the last good sync stamp survives the failure",
+            )
+            local = json.loads(
+                page.evaluate(
+                    "key => localStorage.getItem(key)", "questionaire.progress.v1.cloud." + uid
+                )
+                or "{}"
+            )
+            expected = sorted(local.get("bookmarks") or [])
+        finally:
+            check(set_rules(restored), "the emulator rules are restored")
+
+        def recovered():
+            return page.evaluate(
+                "() => !window.QuestionaireCloud.state.syncError && "
+                "Boolean(window.QuestionaireCloud.state.lastSyncedAt)"
+            )
+
+        check(bool(wait_until(recovered, timeout=90)), "the backoff retry clears the failure")
+        card = page.inner_text("#account-panel").lower()
+        check("not synced" not in card and "synced" in card, "the account card shows a synced state again")
+        check(
+            bool(
+                wait_until(
+                    lambda: sorted(progress_snapshot(uid).get("bookmarks") or []) == expected,
+                    timeout=40,
+                )
+            ),
+            "the retried save reaches the cloud copy",
+        )
+
+
 def check_rules(uid):
     """Owner-only rules: foreign writes refused, own chunks readable."""
     token = id_token(EMAIL_A, PASSWORD)
@@ -809,6 +920,7 @@ def main():
             check_sizes(browser, ids)
             check_oversize_guard(browser, ids)
             check_tombstones(browser, ids)
+            check_sync_failure(browser, ids)
             if uid:
                 check_rules(uid)
             else:
@@ -819,7 +931,10 @@ def main():
     if failures:
         print("\n%d emulator checks failed" % len(failures))
         sys.exit(1)
-    print("\nOK: emulator merge, two-device sitting, size, tombstone and rules checks passed")
+    print(
+        "\nOK: emulator merge, two-device sitting, size, tombstone, "
+        "sync failure and rules checks passed"
+    )
 
 
 if __name__ == "__main__":

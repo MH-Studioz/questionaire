@@ -16,6 +16,7 @@ Released 21 November 2026.
 ## Tests
 
 - `tests/emulator.py` gains `check_tombstones`: device B clears all stars and discards the paused sitting, device A reloads with both still cached, and neither may reappear; re-starring a tombstoned question must then be stored as alive.
+- `tests/emulator.py` gains `check_sync_failure`: the emulator's rules are swapped to refuse writes, a star is saved, and the account card must say *Not synced — … Retrying automatically* with the session still signed in. The rules are then restored and nothing else is touched, so the 2 s backoff retry must clear the error, return the card to *synced*, and land the saved star in the cloud copy.
 
 # Questionaire 0.7.3-alpha — Mixed-version merge and emulator CI
 
